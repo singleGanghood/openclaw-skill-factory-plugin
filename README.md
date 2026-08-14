@@ -69,31 +69,54 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 
 ---
 
-## 📦 Install & manage (via `openclaw plugins`)
+## 📦 Install & manage
 
 ### Requirements
-- OpenClaw `>= 2026.3.28`
-- Node.js（运行本地校验脚本用，可选）
-- `python3`（仅 `skill-splitter` 用）
+- Node.js `>= 18`（npm 安装与本地校验用）
+- `python3`（仅 `skill-splitter` / `skill-factory-eval` 用，标准库即可）
 - `peekaboo`（可选，仅 macOS 本机截图后端用）
 
-### Install
+### Install via npm（当前推荐）
+
+> **注**：本插件目前以**独立 npm 包**形式发布，尚未集成到 OpenClaw 的插件市场。
+> 在 OpenClaw 官方支持通过 `openclaw plugins install <npm-package>` 安装前，
+> 先用 npm 方式安装到本地，再把 `skills/` 目录挂载给 OpenClaw 使用（见下）。
 
 ```bash
-# 从 npm 安装（发布后）
-openclaw plugins install openclaw-skill-factory-plugin
+# 全局安装（推荐，方便 CLI / 各项目复用）
+npm install -g openclaw-skill-factory-plugin
 
-# 或从本地目录安装（开发/内网）
-openclaw plugins install /path/to/openclaw-skill-factory-plugin
+# 或安装到当前项目
+npm install openclaw-skill-factory-plugin
+
+# 或直接拉到本地目录（开发/内网/离线）
+git clone https://github.com/singleGanghood/openclaw-skill-factory-plugin.git
+```
+
+### 让 OpenClaw 使用本插件的 skills
+
+安装后，把包内的 `skills/` 目录指向 OpenClaw 的 skill 加载路径（二选一）：
+
+```bash
+# 方式 A：全局安装后，把 skills 目录软链到 OpenClaw 配置的 skills 目录
+ln -s "$(npm root -g)/openclaw-skill-factory-plugin/skills" <your-openclaw-skills-dir>/skill-factory
+
+# 方式 B：直接在项目内引用（通过相对路径指向 node_modules 中的 skills）
+# 在 OpenClaw 配置中把 skills 路径指向：
+#   <project>/node_modules/openclaw-skill-factory-plugin/skills
 ```
 
 ### Manage
 
 ```bash
-openclaw plugins list                              # 查看已安装插件
-openclaw plugins update openclaw-skill-factory-plugin
-openclaw plugins remove openclaw-skill-factory-plugin
+npm ls -g openclaw-skill-factory-plugin           # 查看已安装版本
+npm update -g openclaw-skill-factory-plugin       # 更新到最新版
+npm uninstall -g openclaw-skill-factory-plugin    # 卸载
 ```
+
+> **未来**：当 OpenClaw 支持插件市场后，将可直接通过
+> `openclaw plugins install openclaw-skill-factory-plugin` 一行安装（本包结构已按
+> `openclaw.plugin.json` + `package.json#openclaw` 规范预置，届时无需改动）。
 
 ### Configure（可选）
 

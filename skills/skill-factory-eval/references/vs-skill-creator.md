@@ -20,7 +20,7 @@
 | 安全/合规扫描 | ✅ | ✅ assessor `check_structure.sh` + rubric | 持平 |
 | 大 Skill 拆分 | ✅ 上下文管理 | ✅ splitter **四种模式 + AST 分析** | **本地更专业** |
 | 元 Skill / 编排入口 | ✅ skill-creator 本体 | ✅ **skill-factory-orchestrator 九步闭环** | 补齐 |
-| 打包 | ✅ `package_skill.py` | ✅ 走 `openclaw plugins` + npm 分发 | 持平（生态化） |
+| 打包 | ✅ `package_skill.py` | ✅ npm 分发（包结构已按 `openclaw.plugin.json` 规范预置，未来支持 `openclaw plugins install`） | 持平（生态化） |
 
 ## 二、六个反超点（本插件"大大强于"的地方）
 

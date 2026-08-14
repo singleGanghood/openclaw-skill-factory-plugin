@@ -32,7 +32,8 @@ metadata:
 
 | 任务 | 指引 |
 |------|------|
-| 治理注册表 Schema 与登记规则 | Read [references/governance-registry.md](references/governance-registry.md) |
+| **幂等安装**（内容寻址四态收敛 + 原子转正 + 查重登记） | Run [scripts/install_skill.py](scripts/install_skill.py) |
+| 治理注册表 Schema 与登记规则（含幂等键） | Read [references/governance-registry.md](references/governance-registry.md) |
 | eligible vs 治理：两个事实源边界 | Read [references/two-sources-of-truth.md](references/two-sources-of-truth.md) |
 
 ---
@@ -46,10 +47,10 @@ metadata:
 | **03** | **快路径静态预检（0 模型调用，秒级）** | **`skill-factory-eval` Phase 0** | **<70 分直接回喂 generator，不进后续昂贵步骤** |
 | 04 | 静态质量评估（结构/安全/规范 7 维） | `skill-assessor` | 静态高分 ≠ 运行时可用 |
 | **05** | **TDD 动态跑分 + description 自动优化** | **`skill-factory-eval` Phase 1–4** | **precision/recall < 目标则回喂优化，按 test 集选最优** |
-| 06 | 授权安装（用户明确同意后执行） | `openclaw plugins`/手动 | 需用户明确同意 |
+| 06 | 授权**幂等安装**（用户同意后执行） | `install_skill.py` | 需用户明确同意；四态收敛，conflict 拒绝 |
 | 07 | 运行验证（info + eligible） | eligibility 判定 | OS/bins/env 真实就绪才算可用 |
 | 08 | 新会话测试（正例触发、反例不误触） | 新 session | 触发词命中 + 排除有效 |
-| 09 | 治理登记（版本、hash、eval 证据、回滚） | 本编排器 | 只写注册表，不改 eligible |
+| 09 | 治理**幂等登记**（版本、hash、eval 证据、回滚） | `install_skill.py` | 幂等键查重，只写注册表，不改 eligible |
 
 > **快路径优先（提速核心）**：Step 03 用零模型调用的静态分析先淘汰弱候选，
 > 约 80% 的低质 description 在此秒级拦截并回喂，**根本不进入 Step 04/05 的昂贵评估**——
@@ -112,9 +113,24 @@ python3 <eval-skill>/scripts/static_trigger_score.py .skill-factory/staging/<nam
 **门禁**：动态 `verdict=PASS` 才算"触发质量合格"，把 `eval_results.json` + `eval_report.html`
 作为**动态验证证据**留档。
 
-### Step 06 — 授权安装（需用户明确同意）
-**必须由用户明确同意后**，才把暂存候选转正到生效目录，或经 `openclaw plugins install` 走插件分发。
-未同意前一律停留在暂存区。
+### Step 06 — 授权幂等安装（需用户明确同意）★内容寻址、可反复执行
+**必须由用户明确同意后**，才把暂存候选转正到生效目录。转正走**幂等安装脚本**——
+以 `contentHash` 为幂等键做**内容寻址的原子转正**，四态收敛（install/noop/upgrade/conflict）：
+
+```bash
+python3 <orchestrator>/scripts/install_skill.py \
+  --staging .skill-factory/staging/<name> \
+  --dest <skills 生效根> \
+  --registry .skill-factory/registry.json \
+  --assessor-score <Step04分> --eval-precision <Step05> --eval-recall <Step05> \
+  [--dry-run]   # 先预演决策，零副作用
+```
+
+- **noop**：内容已一致 → 什么都不做（重复安装安全，退出码 0）。
+- **conflict**（同版本内容漂移 / 降级，退出码 2）：**拒绝落盘**，提示 bump 版本；确需覆盖才显式 `--force`。
+- **install / upgrade**：原子转正（临时目录 + `os.replace`），并发下加文件锁防竞态；upgrade 自动记 `rollbackRef`。
+- 也可经 `npm install`（`openclaw-skill-factory-plugin` 包）/ 未来 `openclaw plugins install` 走分发。
+- 未同意前一律停留在暂存区。**安装绝不修改 eligible / per-agent skills**（见 two-sources-of-truth.md）。
 
 ### Step 07 — 运行验证（info + eligible）
 - `info`：读取 SKILL.md 静态元数据（name/description/metadata.openclaw）
@@ -125,9 +141,13 @@ python3 <eval-skill>/scripts/static_trigger_score.py .skill-factory/staging/<nam
 在新 session 验证：正例（目标触发词能命中并加载）、反例（`Do NOT use for` 场景不误触发）。
 这是对 Step 05 动态跑分结论的真实环境复核。
 
-### Step 09 — 治理登记（只写注册表）
-按 [references/governance-registry.md](references/governance-registry.md) 追加一条记录到治理注册表：
-`name / version / contentHash / assessorScore / evalPrecision / evalRecall / verifiedAt / verifiedBy / rollbackRef`。
+### Step 09 — 治理幂等登记（只写注册表）
+`install_skill.py` 在转正时**顺带完成幂等登记**（Step 06/09 合一执行），按
+[references/governance-registry.md](references/governance-registry.md) 以 **`(name, version, contentHash)`
+为幂等键**追加记录：`name / version / contentHash / assessorScore / evalPrecision / evalRecall /
+verifiedAt / verifiedBy / rollbackRef`。
+- **幂等键查重**：已存在完全相同的 `(name, version, contentHash)` → **不重复追加**（noop）。
+- 若只想单独登记而不转正，可对已生效目录再跑一次（noop 分支会补记缺失的 record）。
 **约束**：本步骤**只写治理注册表，绝不修改 eligible / per-agent skills 配置**——两个事实源分离。
 
 ---
@@ -168,10 +188,15 @@ python3 <eval-skill>/scripts/static_trigger_score.py .skill-factory/staging/<nam
 **原因：** eligible 未通过（OS 不匹配 / bin 缺失 / 不在 per-agent 白名单）。
 **解决：** 看 Step05 的 eligible 判定；确认 `requires.bins`；检查 `agents.<id>.skills` 或 `agents.defaults.skills` 白名单。这是 eligible 问题，与治理注册表无关。
 
+### Error: 重复安装是否安全 / 装了两次会怎样
+**答：** 安全。`install_skill.py` 是**幂等**的——同内容同版本第二次装是 `noop`（零改动、退出码 0）；
+同版本却改了内容会判 `conflict`（拒绝落盘，需 bump 版本），不会静默覆盖。可用 `--dry-run` 先预演决策。
+
 ---
 
 ## Dependencies
 
 - 子 skill：`skill-factory-screenshot`、`skill-generator`、`skill-factory-eval`、`skill-assessor`、`skill-splitter`（同插件捆绑）
+- 幂等安装脚本：`scripts/install_skill.py`（`python3`，仅标准库）
 - 治理注册表文件：`.skill-factory/registry.json`（首次自动创建）
-- 无第三方依赖（`skill-factory-eval` / `skill-splitter` 需 `python3`，仅标准库）
+- 无第三方依赖（`skill-factory-eval` / `skill-splitter` / `install_skill.py` 需 `python3`，仅标准库）

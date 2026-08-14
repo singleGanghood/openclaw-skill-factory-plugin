@@ -82,6 +82,11 @@ const harnessRef = path.join(skillsRoot, "skill-factory-eval", "references", "ev
 if (!fs.existsSync(harnessRef))
   warnings.push("skill-factory-eval: missing references/eval-harness-protocol.md");
 
+// 4. skill-factory-orchestrator 幂等安装脚本必须存在
+const installScript = path.join(skillsRoot, "skill-factory-orchestrator", "scripts", "install_skill.py");
+if (!fs.existsSync(installScript))
+  errors.push("skill-factory-orchestrator: missing scripts/install_skill.py");
+
 // Report
 for (const w of warnings) console.warn(`WARN  ${w}`);
 if (errors.length) {
