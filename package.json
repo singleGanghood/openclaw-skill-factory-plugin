@@ -1,6 +1,6 @@
 {
   "name": "openclaw-skill-factory-plugin",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "OpenClaw skills-only plugin: an eval-driven Skill Factory (generator + assessor + splitter + TDD/eval engine + screenshot bridge + orchestrator). Aligns with Anthropic skill-creator and outperforms it on dependency-freeness, speed (static fast-path) and OpenClaw ecosystem governance.",
   "type": "module",
   "license": "MIT",
