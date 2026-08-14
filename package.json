@@ -1,0 +1,52 @@
+{
+  "name": "openclaw-skill-factory-plugin",
+  "version": "0.1.0",
+  "description": "OpenClaw skills-only plugin: a Skill Factory that bundles skill-generator, skill-assessor, skill-splitter, a screenshot-input bridge and an end-to-end orchestrator to continuously produce, assess, split and govern Agent Skills.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "agent-skills",
+    "skill-generator",
+    "skill-assessor",
+    "skill-splitter",
+    "skill-factory",
+    "screenshot"
+  ],
+  "files": [
+    "skills",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "validate": "node scripts/validate.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/singleGanghood/openclaw-skill-factory-plugin.git"
+  },
+  "homepage": "https://github.com/singleGanghood/openclaw-skill-factory-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/singleGanghood/openclaw-skill-factory-plugin/issues"
+  },
+  "openclaw": {
+    "skills": [
+      "./skills"
+    ],
+    "install": {
+      "npmSpec": "openclaw-skill-factory-plugin",
+      "localPath": "extensions/openclaw-skill-factory-plugin",
+      "defaultChoice": "npm"
+    }
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.28"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}

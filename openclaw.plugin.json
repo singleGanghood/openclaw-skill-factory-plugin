@@ -1,0 +1,31 @@
+{
+  "id": "openclaw-skill-factory-plugin",
+  "name": "Skill Factory",
+  "description": "A skills-only OpenClaw plugin that bundles skill-generator, skill-assessor and skill-splitter, plus a screenshot-input bridge and an end-to-end orchestrator, to continuously produce, assess, split and govern new Agent Skills.",
+  "version": "0.1.0",
+  "kind": "skills",
+  "skills": [
+    "./skills"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "registryPath": {
+        "type": "string",
+        "description": "Path to the governance registry JSON. Only records verified skill versions; never affects runtime eligibility.",
+        "default": ".openclaw/skill-factory/registry.json"
+      },
+      "stagingDir": {
+        "type": "string",
+        "description": "Directory where generated skill candidates are staged before authorized install.",
+        "default": ".openclaw/skills-staging"
+      },
+      "assessorPassScore": {
+        "type": "number",
+        "description": "Minimum skill-assessor score (0-100) required before a candidate may be installed.",
+        "default": 80
+      }
+    }
+  }
+}
