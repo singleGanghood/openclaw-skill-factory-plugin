@@ -9,7 +9,7 @@
 
 > 把 `skill-generator` / `skill-assessor` / `skill-splitter` 叠加 **TDD/eval 动态跑分引擎** 与"看屏截图输入"，封装成一个可直接开源、可通过 `openclaw plugins` 命令管理的插件。
 >
-> 🎯 **对标 Anthropic 官方 `skill-creator` 并反超**：能力全面对齐（自动 eval / TDD / description 自动优化 / 防过拟合 train-test 分割），并在**零外部依赖、创建速度（静态快路径短路）、OpenClaw 生态注册、多模态需求输入、治理**五个维度更强。逐条对比见 [`skills/skill-factory-eval/references/vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
+> 🎯 **对标 Anthropic 官方 `skill-creator` 并反超**：能力全面对齐（自动 eval / TDD / description 自动优化 / 防过拟合 train-test 分割），并在**零外部依赖、创建速度（静态快路径短路）、幂等安装（内容寻址四态收敛）、OpenClaw 生态注册、多模态需求输入、治理**六个维度更强。逐条对比见 [`skills/skill-factory-eval/references/vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
 
 ---
 
@@ -24,7 +24,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 | `skill-splitter` 🪓 | 识别大 Skill 的职责/依赖/数据契约，生成可审阅的子 Skill 与编排器提案（四种模式 + AST 分析） | `requires.bins: [python3]` |
 | `skill-factory-eval` 🎯 | **TDD/eval 引擎**：快路径静态触发力分析（0 模型调用）→ train/test 分层跑分（precision/recall）→ description 自动优化闭环。对标并反超官方 skill-creator | `requires.bins: [python3]` |
 | `skill-factory-screenshot` 📸 | 稳定实现"截图作为造技能输入"，桥接内置 `screen_snapshot` 与 `peekaboo` 两条后端 | 后端各自门控（见下） |
-| `skill-factory-orchestrator` 🏗️ | 薄编排器：把上述能力串成需求→暂存→**快路径预检**→静态评估→**TDD 动态跑分/优化**→授权安装→运行验证→新会话测试→治理登记的**九步闭环** | 无外部依赖 |
+| `skill-factory-orchestrator` 🏗️ | 薄编排器：把上述能力串成需求→暂存→**快路径预检**→静态评估→**TDD 动态跑分/优化**→授权**幂等安装**→运行验证→新会话测试→**幂等治理登记**的**九步闭环**（`scripts/install_skill.py` 内容寻址四态收敛） | 无外部依赖 |
 
 ### 与龙虾（OpenClaw）截图能力搭配
 
@@ -51,6 +51,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 | **外部依赖** | ❌ 硬依赖 `anthropic` SDK + `claude -p` + `webbrowser` | ✅ **纯标准库 + 宿主 subagent，零 SDK/CLI/API key** | **反超** |
 | **创建速度** | ⚠️ 逢改必真实跑模型 | ✅ **静态快路径 0 模型调用短路，~80% 弱候选秒级拦截** | **反超** |
 | **CI 可复现（回放）** | ❌ 每次真起模型 | ✅ `replay` 后端离线确定性复现 eval | **反超** |
+| **幂等安装** | ❌ 手动拷贝，重复安装产生漂移 | ✅ `install_skill.py` **内容寻址四态收敛**（install/noop/conflict/upgrade）+ 原子转正 + 查重登记，CI 反复跑结果稳定 | **反超** |
 | **生态注册** | ❌ 无 | ✅ `metadata.openclaw.skillKey` + 门控 + 治理注册表 | **反超** |
 | **多模态需求输入** | ⚠️ 纯文本 interview | ✅ 截图 → 需求草案 | **反超** |
 | 大 Skill 拆分 | ✅ | ✅ 四种模式 + AST 分析 | 更专业 |
@@ -65,7 +66,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 1. **依赖门控**：`skill-splitter` 声明 `requires.bins: [python3]`；截图后端 B 的 OS+bin 门控由 `peekaboo` skill 承载。运行时 eligibility 未满足则该 skill 自动不可用。
 2. **不触碰核心**：全部为 Markdown 工作流 + 内置 tool/CLI，**无任何 TS 运行时代码**，不 import OpenClaw 核心 `src/**`，天然满足扩展导入边界。
 3. **截图授权门控**：高风险屏幕命令必须先经 `phone-control` arm（推荐带 `--ttl` 自动过期）+ macOS TCC 授权，用完 disarm，禁止未授权静默截图。
-4. **两个事实源分离**：per-agent **eligible** 清单决定"现在能不能用"；**治理注册表**（`registry.json`）只记录"哪个版本通过过什么验证"。注册表不能替代运行时；登记步骤不修改 eligible。
+4. **两个事实源分离**：per-agent **eligible** 清单决定"现在能不能用"；**治理注册表**（`registry.json`）只记录"哪个版本通过过什么验证"。注册表不能替代运行时；登记步骤不修改 eligible。**幂等安装**（`install_skill.py`）只作用于**磁盘 + 注册表**，同样绝不触碰 eligible / per-agent skills。
 
 ---
 
@@ -73,7 +74,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 
 ### Requirements
 - Node.js `>= 18`（npm 安装与本地校验用）
-- `python3`（仅 `skill-splitter` / `skill-factory-eval` 用，标准库即可）
+- `python3`（`skill-splitter` / `skill-factory-eval` / 幂等安装 `install_skill.py` 用，标准库即可）
 - `peekaboo`（可选，仅 macOS 本机截图后端用）
 
 ### Install via npm（当前推荐）
@@ -147,10 +148,10 @@ openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-gen
 3. **快路径静态预检**（`skill-factory-eval` Phase 0，0 模型调用）：低分秒级回喂重生成
 4. 委托 `skill-assessor` 做静态 7 维评估，不达标回喂
 5. **TDD 动态跑分 + description 自动优化**（`skill-factory-eval`）：precision/recall 达标才算触发合格
-6. 用户**明确同意**后安装
+6. 用户**明确同意**后**幂等安装**（`install_skill.py`：内容寻址四态收敛 install/noop/conflict/upgrade，原子转正 + 并发锁，`--dry-run` 可先预演）
 7. 判定 `info + eligible` 运行验证
 8. 新会话正/反例触发测试
-9. 治理登记（version / hash / assessorScore / precision / recall / rollbackRef）
+9. **幂等治理登记**（`(name, version, contentHash)` 幂等键查重，version / hash / assessorScore / precision / recall / rollbackRef）
 
 单步也可直接触发对应 skill（如「评估 xxx skill」「给 xxx skill 跑触发测试」「拆解 xxx skill」）。
 
@@ -173,7 +174,8 @@ openclaw-skill-factory-plugin/
     │   │                             #   + run_eval_loop（一键闭环） / grader_adapter（判定协议） / generate_report（HTML）
     │   └── references/               #   eval-loop / eval-harness-protocol / tdd-golden-cases / grader-rubric / vs-skill-creator
     ├── skill-factory-screenshot/     # 截图输入桥（含授权清单）
-    └── skill-factory-orchestrator/   # 九步闭环编排器（含治理注册表规范）
+    └── skill-factory-orchestrator/   # 九步闭环编排器（含治理注册表规范 + 幂等安装）
+        └── scripts/install_skill.py  # 内容寻址幂等安装（install/noop/conflict/upgrade + 原子转正 + 查重登记）
 ```
 
 ## 🔧 Develop
