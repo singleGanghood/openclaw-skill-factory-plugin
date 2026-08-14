@@ -51,10 +51,19 @@
 - 目标默认 `precision >= 0.8 且 recall >= 0.8` → `PASS`。
 - 未达标 → 产出最优候选 + 结构化优化指令，交 orchestrator 决策。
 
-## 六、相对官方的提速点
+## 六、相对官方的提速点 + 全自动闭环
 
 1. **快路径短路**：先跑 `static_trigger_score.py`（0 模型调用），<70 分直接回喂 generator，
    根本不进入昂贵的动态循环。官方无此层，任何候选都要真实跑模型。
-2. **复用宿主 subagent**：慢路径不新拉 `claude -p` 子进程/不初始化 `anthropic` client，
-   省掉 SDK 与进程冷启动。
-3. **可选降低 runs_per_query**：静态分很高的候选，动态可只跑 1–2 次抽检而非 3 次。
+2. **一键全自动闭环**：`run_eval_loop.py` 把 split→判定→聚合→改写→按 test 选最优串成**一条命令**，
+   对齐官方 `run_loop.py` 的口径，但判定/改写通过 [eval-harness-protocol.md](eval-harness-protocol.md)
+   的**进程协议**委托宿主命令——不新拉 `claude -p` 子进程、不初始化 `anthropic` client。
+3. **可插拔 + 可回放**：判定后端 `host-cmd`（生产）/ `replay`（CI 确定性复现）/ `mock`（自测），
+   同一套编排在生产与 CI 复用；`replay` 让 eval 结果可离线回归，官方无此能力。
+4. **可选降低 runs_per_query**：静态分很高的候选，动态可只跑 1–2 次抽检而非 3 次。
+
+## 七、可视化（补齐官方 eval-viewer 的等价物）
+
+跑完后用 `generate_report.py eval_results.json -o eval_report.html` 产出**零依赖单文件 HTML**：
+verdict、按 test 选出的最优轮、每轮 train/test 的 precision/recall 柱状、失败项置顶的明细表、
+最优 description 全文。双击即在浏览器打开，无需服务器/网络。

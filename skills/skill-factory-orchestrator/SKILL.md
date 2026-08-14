@@ -101,13 +101,16 @@ python3 <eval-skill>/scripts/static_trigger_score.py .skill-factory/staging/<nam
 （可选）若候选超阈值过大（>10 分钟 / >20 文件 / ≥3 功能域），委托 `skill-splitter` 拆分。
 
 ### Step 05 — TDD 动态跑分 + description 自动优化 ★补齐官方核心
-委托 `skill-factory-eval` 的 Phase 1–4：
+委托 `skill-factory-eval` 的**一键全自动闭环**：
 1. `gen_eval_set.py` 生成正/反例骨架 → 补足 **≥3 正例 + ≥3 反例**（TDD golden cases）
-2. `split_eval.py` 分层切 train/test（防过拟合）
-3. 用**宿主 subagent**对 train+test 跑触发判定 → `aggregate_eval.py` 算 precision/recall/accuracy
-4. 未达标（默认 precision/recall < 0.8）→ 隐藏 test 分回喂改写 description → 循环，**按 test 集选最优**
+2. `run_eval_loop.py` 一条命令跑完：分层切 train/test → 用**进程协议**委托宿主 subagent 判定
+   （`--grader-backend host-cmd`）→ `aggregate` 算 precision/recall/accuracy →
+   未达标自动改写 description（`--rewriter-backend host-cmd`，隐藏 test 分防过拟合）→ 循环 →
+   **按 test 集选最优**
+3. `generate_report.py` 产出**单文件 HTML 可视化报告**供人工复核
 
-**门禁**：动态 verdict=PASS 才算"触发质量合格"，把 `eval_results.json` 作为**动态验证证据**留档。
+**门禁**：动态 `verdict=PASS` 才算"触发质量合格"，把 `eval_results.json` + `eval_report.html`
+作为**动态验证证据**留档。
 
 ### Step 06 — 授权安装（需用户明确同意）
 **必须由用户明确同意后**，才把暂存候选转正到生效目录，或经 `openclaw plugins install` 走插件分发。

@@ -37,6 +37,9 @@ metadata:
 
 | 任务 | 指引 |
 |------|------|
+| **★ 一键全自动闭环**（split→判定→聚合→改写→按test选最优） | Run [scripts/run_eval_loop.py](scripts/run_eval_loop.py) |
+| **★ 生成可视化 HTML 报告**（零依赖单文件） | Run [scripts/generate_report.py](scripts/generate_report.py) |
+| **★ 触发判定/改写的进程协议**（host-cmd/replay/mock，可插拔可回放） | Run [scripts/grader_adapter.py](scripts/grader_adapter.py) · Read [references/eval-harness-protocol.md](references/eval-harness-protocol.md) |
 | 生成触发 eval set（正例/反例） | Run [scripts/gen_eval_set.py](scripts/gen_eval_set.py) 生成骨架，再人工/subagent 补全 |
 | 静态触发力分析（快路径，0 模型调用） | Run [scripts/static_trigger_score.py](scripts/static_trigger_score.py) |
 | train/test 分层分割（防过拟合） | Run [scripts/split_eval.py](scripts/split_eval.py) |
@@ -45,6 +48,24 @@ metadata:
 | TDD golden case 写法 | Read [references/tdd-golden-cases.md](references/tdd-golden-cases.md) |
 | 判分器（grader）评判准则 | Read [references/grader-rubric.md](references/grader-rubric.md) |
 | 对标官方 skill-creator 的差异与反超点 | Read [references/vs-skill-creator.md](references/vs-skill-creator.md) |
+
+> **一键跑法（推荐）**：通过 `run_eval_loop.py` 一条命令跑完动态优化闭环，再用 `generate_report.py`
+> 出可视化报告。判定与改写通过 [eval-harness-protocol.md](references/eval-harness-protocol.md) 的
+> **进程协议**委托给宿主命令（生产）/ 回放文件（CI）/ 内置 mock（自测）——**全程零第三方 SDK**。
+>
+> ```bash
+> # 生产：宿主命令做判定与改写，全自动
+> python3 scripts/run_eval_loop.py --skill <skill-dir>/SKILL.md --eval-set eval_set.json \
+>   --distractors distractors.json \
+>   --grader-backend host-cmd  --grader-cmd  "openclaw subagent grade" \
+>   --rewriter-backend host-cmd --rewriter-cmd "openclaw subagent rewrite-desc" \
+>   --out eval_results.json
+> python3 scripts/generate_report.py eval_results.json -o eval_report.html
+>
+> # 自测/CI：mock 判定跑通闭环（不改写）
+> python3 scripts/run_eval_loop.py --skill <skill-dir>/SKILL.md --eval-set eval_set.json \
+>   --grader-backend mock --rewriter-backend none --out eval_results.json
+> ```
 
 ---
 
@@ -56,13 +77,14 @@ metadata:
    ├─(1) 快路径 static_trigger_score.py ── 0 模型调用，毫秒级
    │        └─ score < 阈值 ? → 直接产出优化指令回喂 generator（不起模型，秒级闭环）
    │
-   └─(2) 通过快路径 → 慢路径动态跑分
+   └─(2) 通过快路径 → 慢路径动态跑分（run_eval_loop.py 一键编排）
             ├─ gen_eval_set.py    生成正例(should_trigger)+反例(should NOT)骨架
             ├─ split_eval.py      按 should_trigger 分层切 train/test（默认 holdout=0.4）
-            ├─ 宿主 subagent 跑 train+test：每 query 跑 N 次，统计触发率
+            ├─ grader_adapter     进程协议判定 train+test：每 query 跑 N 次（host-cmd/replay/mock）
             ├─ aggregate_eval.py  算 precision/recall/accuracy，标 PASS/FAIL
-            └─ 未达标 → 用 failed/false triggers（隐藏 test 分）回喂改 description → 循环
-                       └─ 按 TEST 集选最优（防过拟合）
+            ├─ rewriter（host-cmd）用 failed/false triggers（隐藏 test 分）自动改写 description → 循环
+            │                     └─ 按 TEST 集选最优（防过拟合）
+            └─ generate_report.py 产出单文件 HTML 可视化报告（离线可开）
 ```
 
 **为什么比官方快**：官方每轮都真实起 `claude -p` 子进程对全量 query 跑 `runs_per_query` 次；
@@ -121,34 +143,64 @@ python3 scripts/split_eval.py eval_set.json --holdout 0.4 --seed 42 > split.json
 
 按 `should_trigger` **分层**切分（train 用于优化、test 只用于选最优），避免 description 过拟合到具体问法。
 
-### Phase 3 — 动态跑分（宿主 subagent，零外部 SDK）
+### Phase 3 — 动态跑分（全自动闭环，零外部 SDK）★已升级为一键可跑
 
-对 train+test 的每个 query，用**宿主自带的 subagent 能力**发起一次"只给 available_skills 列表、
-问模型是否会调用本 skill"的判定（判定准则见
-[references/grader-rubric.md](references/grader-rubric.md)），每 query 重复 N 次（默认 3）统计触发率。
-
-> **不要**调用 `anthropic` SDK 或 `claude -p` CLI。用你当前宿主（OpenClaw / CodeBuddy）
-> 已提供的 subagent / task 机制发起判定，把每次结果写成 JSON 行喂给聚合脚本。
+**推荐：一条命令跑完 Phase 2–4 的全自动闭环**（split→判定→聚合→改写→按 test 选最优）：
 
 ```bash
+python3 scripts/run_eval_loop.py \
+  --skill <skill-dir>/SKILL.md --eval-set eval_set.json --distractors distractors.json \
+  --grader-backend host-cmd  --grader-cmd  "<宿主判定命令>" \
+  --rewriter-backend host-cmd --rewriter-cmd "<宿主改写命令>" \
+  --holdout 0.4 --runs-per-query 3 --trigger-threshold 0.5 --target 0.8 --max-iterations 5 \
+  --out eval_results.json
+```
+
+判定与改写通过 [references/eval-harness-protocol.md](references/eval-harness-protocol.md) 定义的
+**进程协议**委托出去，`run_eval_loop.py` 只负责编排口径（与官方 `run_loop.py` 对齐）：
+
+- **判定后端**：`host-cmd`（生产，委托宿主 subagent，stdin/stdout JSON 协议）/ `replay`（CI 确定性复现）/ `mock`（自测）。
+- **改写后端**：`host-cmd`（生产，宿主 subagent 改写，blinded 不给 test 分）/ `none`（只测不改）。
+- 每 query 重复 `runs_per_query`（默认 3）次统计触发率；判定纪律见
+  [references/grader-rubric.md](references/grader-rubric.md)。
+
+> **仍然零外部 SDK**：`run_eval_loop.py` 与 `grader_adapter.py` 只用标准库，通过**子进程**与
+> 宿主命令通信；**不要** import `anthropic` / 调 `claude -p`。这样任何宿主接上自己的
+> grader/rewriter 命令即变为生产级全自动闭环，无宿主命令时用 `mock` 也能跑通验证。
+
+（如需手动分步，仍可用 `split_eval.py` + `aggregate_eval.py` 单独调用。）
+
+```bash
+# 分步聚合（可选，run_eval_loop 内部已自动完成）
 python3 scripts/aggregate_eval.py raw_runs.json --trigger-threshold 0.5 > eval_results.json
 ```
 
 输出：每 query 的 `triggers/runs`、`pass`，以及总体 `precision / recall / accuracy`。
 
-### Phase 4 — description 自动优化闭环
+### Phase 4 — description 自动优化闭环（已由 run_eval_loop.py 自动执行）
 
-按 [references/eval-loop.md](references/eval-loop.md)：
+`run_eval_loop.py` 内部按 [references/eval-loop.md](references/eval-loop.md) 与
+[references/eval-harness-protocol.md](references/eval-harness-protocol.md) 自动完成：
 - 若 train 有 FAIL：收集 `failed_triggers`（该触发没触发）+ `false_triggers`（不该触发却触发），
-  **隐藏 test 分数**，连同"历史尝试（不要重复）"一起，让模型改写 description（≤ 100–200 词，硬上限 1024 字符）。
-- 改完回 Phase 3 重跑；**按 test 集分数选最优**。
-- 停止条件：train 全过 **或** 达到 `max_iterations`（默认 5）。
+  **隐藏 test 分数**（blinded），连同"历史尝试（不要重复）"一起，通过 rewriter 进程协议
+  让宿主 subagent 改写 description（≤ 100–200 词，硬上限 1024 字符）。
+- 改完自动重跑；**按 test 集分数选最优**（记在结果 JSON 的 `best`）。
+- 停止条件：train 全过 **或** 达到 `max_iterations`（默认 5）**或** 改写器无新方案。
 
-### Phase 5 — 产出判定
+（`--rewriter-backend none` 时跳过改写，仅做一轮基准测量。）
 
-- **达标**（test 集 precision/recall 均 ≥ 目标，默认 ≥ 0.8）：把最优 description 写回 SKILL.md，
-  产出 `eval_results.json` 作为**动态验证证据**，交回 orchestrator 登记。
-- **未达标**：产出结构化优化指令 + 最优候选，交回 orchestrator，人工介入或换 generator 策略。
+### Phase 5 — 产出判定 + 可视化报告
+
+`run_eval_loop.py` 产出 `eval_results.json`（含每轮 train/test 分、`best`、`best_description`、`verdict`）。
+再生成**单文件 HTML 可视化报告**供人工复核：
+
+```bash
+python3 scripts/generate_report.py eval_results.json -o eval_report.html
+```
+
+- **达标**（`verdict=PASS`，test 集 precision/recall 均 ≥ 目标，默认 ≥ 0.8）：把 `best_description`
+  写回 SKILL.md，`eval_results.json` + `eval_report.html` 作为**动态验证证据**交回 orchestrator 登记。
+- **未达标**（`verdict=FAIL`）：报告里失败项已置顶，交回 orchestrator，人工介入或换 generator 策略。
 
 ---
 
@@ -197,6 +249,19 @@ python3 scripts/aggregate_eval.py raw_runs.json --trigger-threshold 0.5 > eval_r
 
 ## Dependencies
 
-- `python3`（仅标准库；脚本零第三方依赖）
-- 宿主提供的 subagent / task 能力（用于动态触发判定）
-- **无** `anthropic` SDK / `claude` CLI / 浏览器依赖
+- `python3`（仅标准库；所有脚本零第三方依赖）
+- 宿主提供的 grader / rewriter 命令（用于 `run_eval_loop.py` 的 `host-cmd` 后端做动态判定/改写）；
+  无宿主命令时可用 `replay`（CI 复现）或 `mock`（自测）后端跑通闭环
+- **无** `anthropic` SDK / `claude` CLI / 浏览器依赖（HTML 报告为离线单文件，双击即开）
+
+### 脚本清单
+
+| 脚本 | 作用 |
+|------|------|
+| `static_trigger_score.py` | 快路径：0 模型调用静态触发力打分 |
+| `gen_eval_set.py` | 从 SKILL.md 生成正/反例骨架 |
+| `split_eval.py` | train/test 分层切分 |
+| `aggregate_eval.py` | 聚合成 precision/recall/accuracy |
+| `grader_adapter.py` | 触发判定进程协议（host-cmd/replay/mock） |
+| `run_eval_loop.py` | **一键全自动优化闭环编排** |
+| `generate_report.py` | **零依赖单文件 HTML 可视化报告** |

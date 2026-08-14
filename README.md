@@ -41,13 +41,16 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 
 | 维度 | 官方 skill-creator | 本插件 | 结论 |
 |------|--------------------|--------|------|
-| 自动 eval / benchmark | ✅ `run_loop.py` | ✅ `skill-factory-eval` 两段式跑分 | **补齐** |
+| 自动 eval / benchmark | ✅ `run_loop.py` | ✅ `run_eval_loop.py` **一键全自动闭环**（split→判定→聚合→改写→按test选最优） | **补齐** |
 | TDD 测试驱动 | ✅ | ✅ `gen_eval_set.py` + golden cases（先红后绿） | **补齐** |
 | description 自动优化 | ✅ V3 核心 | ✅ eval-loop：train 优化 / test 选优 / blinded history | **补齐** |
 | 防过拟合 train/test 分割 | ✅ | ✅ `split_eval.py` 分层切分 | 持平 |
 | precision/recall/accuracy | ✅ | ✅ `aggregate_eval.py`（口径对齐） | 持平 |
+| **eval 可视化报告** | ✅ eval-viewer（HTML，需脚本+浏览器） | ✅ `generate_report.py` **零依赖单文件 HTML，离线双击即开** | **补齐并更轻** |
+| **判定/改写执行体** | ❌ 硬编码 `anthropic` SDK + `claude -p` | ✅ **可插拔进程协议**：host-cmd（宿主）/ replay（CI 回放）/ mock（自测） | **反超** |
 | **外部依赖** | ❌ 硬依赖 `anthropic` SDK + `claude -p` + `webbrowser` | ✅ **纯标准库 + 宿主 subagent，零 SDK/CLI/API key** | **反超** |
 | **创建速度** | ⚠️ 逢改必真实跑模型 | ✅ **静态快路径 0 模型调用短路，~80% 弱候选秒级拦截** | **反超** |
+| **CI 可复现（回放）** | ❌ 每次真起模型 | ✅ `replay` 后端离线确定性复现 eval | **反超** |
 | **生态注册** | ❌ 无 | ✅ `metadata.openclaw.skillKey` + 门控 + 治理注册表 | **反超** |
 | **多模态需求输入** | ⚠️ 纯文本 interview | ✅ 截图 → 需求草案 | **反超** |
 | 大 Skill 拆分 | ✅ | ✅ 四种模式 + AST 分析 | 更专业 |
@@ -142,9 +145,10 @@ openclaw-skill-factory-plugin/
     ├── skill-generator/
     ├── skill-assessor/               # 静态 7 维评估（+ 衔接动态跑分）
     ├── skill-splitter/
-    ├── skill-factory-eval/           # TDD/eval 引擎（快路径 + 动态跑分 + 自动优化）
+    ├── skill-factory-eval/           # TDD/eval 引擎（快路径 + 一键全自动闭环 + 可视化）
     │   ├── scripts/                  #   static_trigger_score / gen_eval_set / split_eval / aggregate_eval
-    │   └── references/               #   eval-loop / tdd-golden-cases / grader-rubric / vs-skill-creator
+    │   │                             #   + run_eval_loop（一键闭环） / grader_adapter（判定协议） / generate_report（HTML）
+    │   └── references/               #   eval-loop / eval-harness-protocol / tdd-golden-cases / grader-rubric / vs-skill-creator
     ├── skill-factory-screenshot/     # 截图输入桥（含授权清单）
     └── skill-factory-orchestrator/   # 九步闭环编排器（含治理注册表规范）
 ```

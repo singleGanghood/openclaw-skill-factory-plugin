@@ -2,7 +2,7 @@
   "id": "openclaw-skill-factory-plugin",
   "name": "Skill Factory",
   "description": "A skills-only OpenClaw plugin: an eval-driven Skill Factory bundling skill-generator, skill-assessor, skill-splitter, a TDD/eval engine (skill-factory-eval) with static fast-path + dynamic trigger benchmark & auto description optimization, a screenshot-input bridge, and an end-to-end orchestrator to continuously produce, assess, split, benchmark and govern Agent Skills. Aligns with Anthropic skill-creator and outperforms it on dependency-freeness, speed and ecosystem governance.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "kind": "skills",
   "skills": [
     "./skills"

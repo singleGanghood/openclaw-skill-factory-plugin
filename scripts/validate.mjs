@@ -63,6 +63,25 @@ if (fs.existsSync(skillsRoot)) {
   errors.push("missing skills/ directory");
 }
 
+// 3. skill-factory-eval 关键脚本必须存在（全自动闭环 + 可视化 + 判定协议）
+const evalScripts = [
+  "static_trigger_score.py",
+  "gen_eval_set.py",
+  "split_eval.py",
+  "aggregate_eval.py",
+  "grader_adapter.py",
+  "run_eval_loop.py",
+  "generate_report.py",
+];
+const evalScriptDir = path.join(skillsRoot, "skill-factory-eval", "scripts");
+for (const s of evalScripts) {
+  const abs = path.join(evalScriptDir, s);
+  if (!fs.existsSync(abs)) errors.push(`skill-factory-eval: missing script ${s}`);
+}
+const harnessRef = path.join(skillsRoot, "skill-factory-eval", "references", "eval-harness-protocol.md");
+if (!fs.existsSync(harnessRef))
+  warnings.push("skill-factory-eval: missing references/eval-harness-protocol.md");
+
 // Report
 for (const w of warnings) console.warn(`WARN  ${w}`);
 if (errors.length) {
