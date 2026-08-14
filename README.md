@@ -1,5 +1,10 @@
 # 🏭 OpenClaw Skill Factory Plugin
 
+[![npm version](https://img.shields.io/npm/v/openclaw-skill-factory-plugin)](https://www.npmjs.com/package/openclaw-skill-factory-plugin)
+[![GitHub stars](https://img.shields.io/github/stars/singleGanghood/openclaw-skill-factory-plugin)](https://github.com/singleGanghood/openclaw-skill-factory-plugin)
+[![validate](https://github.com/singleGanghood/openclaw-skill-factory-plugin/actions/workflows/validate.yml/badge.svg)](https://github.com/singleGanghood/openclaw-skill-factory-plugin/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **A skills-only [OpenClaw](https://github.com/openclaw) plugin** that turns the "one-off skill helpers" into a governed, end-to-end **skill production line** — and can optionally use OpenClaw's screenshot capability as input for authoring skills.
 
 > 把 `skill-generator` / `skill-assessor` / `skill-splitter` 三项通用能力，叠加"看屏截图输入"，封装成一个可直接开源、可通过 `openclaw plugins` 命令管理的插件。
