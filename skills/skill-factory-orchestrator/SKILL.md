@@ -68,7 +68,7 @@ metadata:
 
 ### Step 02 — 暂存创建（隔离候选）
 委托 `skill-generator` 生成骨架。**门禁**：
-- 只写入**暂存目录**（如 `.openclaw/skills-staging/<name>/`），不写入生效目录
+- 只写入**暂存目录**（如 `.skill-factory/staging/<name>/`），不写入生效目录
 - **不自动安装**、**不覆盖同名已有 skill**（同名冲突则改名或提示）
 
 ### Step 03 — 质量评估
@@ -134,5 +134,5 @@ metadata:
 ## Dependencies
 
 - 子 skill：`skill-factory-screenshot`、`skill-generator`、`skill-assessor`、`skill-splitter`（同插件捆绑）
-- 治理注册表文件：`.openclaw/skill-factory/registry.json`（首次自动创建）
+- 治理注册表文件：`.skill-factory/registry.json`（首次自动创建）
 - 无第三方依赖

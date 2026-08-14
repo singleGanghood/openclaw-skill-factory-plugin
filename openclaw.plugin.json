@@ -14,12 +14,12 @@
       "registryPath": {
         "type": "string",
         "description": "Path to the governance registry JSON. Only records verified skill versions; never affects runtime eligibility.",
-        "default": ".openclaw/skill-factory/registry.json"
+        "default": ".skill-factory/registry.json"
       },
       "stagingDir": {
         "type": "string",
         "description": "Directory where generated skill candidates are staged before authorized install.",
-        "default": ".openclaw/skills-staging"
+        "default": ".skill-factory/staging"
       },
       "assessorPassScore": {
         "type": "number",

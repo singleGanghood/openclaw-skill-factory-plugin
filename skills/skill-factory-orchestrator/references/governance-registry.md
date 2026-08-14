@@ -6,7 +6,7 @@
 ## 存储位置
 
 ```
-.openclaw/skill-factory/registry.json
+.skill-factory/registry.json
 ```
 
 首次登记时若不存在则创建。
@@ -22,7 +22,7 @@
       "version": "1.0.0",
       "contentHash": "sha256:...",       // SKILL.md + 资源文件内容哈希，作为不可变快照证据
       "assessorScore": 88,                // skill-assessor 给出的百分制分数
-      "assessorReportRef": ".openclaw/skill-factory/reports/expense-filler-1.0.0.md",
+      "assessorReportRef": ".skill-factory/reports/expense-filler-1.0.0.md",
       "verifiedAt": "2026-08-14T10:00:00+08:00",
       "verifiedBy": "orchestrator",       // 或具体 agent / 用户 id
       "sessionTest": { "positive": true, "negativeNoMisfire": true },

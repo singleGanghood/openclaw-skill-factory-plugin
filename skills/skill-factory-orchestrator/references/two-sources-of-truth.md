@@ -7,7 +7,7 @@
 | 维度 | 运行时 eligible | 治理注册表 |
 |------|-----------------|------------|
 | 回答的问题 | 现在这个 agent **能不能用**这个 skill？ | 哪个**版本**通过过**什么验证**？ |
-| 事实来源 | per-agent skills 白名单 + `metadata.openclaw`（os/requires/env）实时判定 | `.openclaw/skill-factory/registry.json`（历史追加） |
+| 事实来源 | per-agent skills 白名单 + `metadata.openclaw`（os/requires/env）实时判定 | `.skill-factory/registry.json`（历史追加） |
 | 决定因素 | OS 匹配、bin 在 PATH、env/config 满足、在白名单内 | 人为/自动登记的验证结论 |
 | 变化时机 | 环境变化即变（换机器、装了 bin、改白名单） | 只在通过验证后追加 |
 | 谁来改 | 配置层（`agents.*.skills`）+ 环境 | 编排器 Step07 |

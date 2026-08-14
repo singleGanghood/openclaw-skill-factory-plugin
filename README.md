@@ -73,7 +73,7 @@ openclaw plugins remove openclaw-skill-factory-plugin
 
 ```bash
 openclaw config set plugins.openclaw-skill-factory-plugin.assessorPassScore 85
-openclaw config set plugins.openclaw-skill-factory-plugin.stagingDir ".openclaw/skills-staging"
+openclaw config set plugins.openclaw-skill-factory-plugin.stagingDir ".skill-factory/staging"
 openclaw gateway restart
 ```
 
