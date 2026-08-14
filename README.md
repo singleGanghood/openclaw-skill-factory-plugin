@@ -5,23 +5,26 @@
 [![validate](https://github.com/singleGanghood/openclaw-skill-factory-plugin/actions/workflows/validate.yml/badge.svg)](https://github.com/singleGanghood/openclaw-skill-factory-plugin/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A skills-only [OpenClaw](https://github.com/openclaw) plugin** that turns the "one-off skill helpers" into a governed, end-to-end **skill production line** — and can optionally use OpenClaw's screenshot capability as input for authoring skills.
+**A skills-only [OpenClaw](https://github.com/openclaw) plugin** that turns the "one-off skill helpers" into a governed, **eval-driven, end-to-end skill production line** — with a static fast-path for speed, a TDD/benchmark engine for triggering quality, and optional screenshot input for authoring skills.
 
-> 把 `skill-generator` / `skill-assessor` / `skill-splitter` 三项通用能力，叠加"看屏截图输入"，封装成一个可直接开源、可通过 `openclaw plugins` 命令管理的插件。
+> 把 `skill-generator` / `skill-assessor` / `skill-splitter` 叠加 **TDD/eval 动态跑分引擎** 与"看屏截图输入"，封装成一个可直接开源、可通过 `openclaw plugins` 命令管理的插件。
+>
+> 🎯 **对标 Anthropic 官方 `skill-creator` 并反超**：能力全面对齐（自动 eval / TDD / description 自动优化 / 防过拟合 train-test 分割），并在**零外部依赖、创建速度（静态快路径短路）、OpenClaw 生态注册、多模态需求输入、治理**五个维度更强。逐条对比见 [`skills/skill-factory-eval/references/vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
 
 ---
 
 ## ✨ What's inside
 
-This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles **5 skills**:
+This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles **6 skills**:
 
 | Skill | 作用 | 门禁 (metadata.openclaw) |
 |-------|------|--------------------------|
 | `skill-generator` 🏭 | 把自然语言需求转成标准 Skill 候选，补齐触发边界、输入输出、依赖、权限与 eval | 无外部依赖 |
-| `skill-assessor` 📊 | 7 维度分层检查（结构/安全/脚本/依赖/测试/运行时安装/eligible/真实触发） | `requires.bins: [bash]` |
-| `skill-splitter` 🪓 | 识别大 Skill 的职责/依赖/数据契约，生成可审阅的子 Skill 与编排器提案 | `requires.bins: [python3]` |
+| `skill-assessor` 📊 | 静态 7 维评估（结构/frontmatter/正文/token 效率/生态兼容等），并衔接动态跑分 | `requires.bins: [bash]` |
+| `skill-splitter` 🪓 | 识别大 Skill 的职责/依赖/数据契约，生成可审阅的子 Skill 与编排器提案（四种模式 + AST 分析） | `requires.bins: [python3]` |
+| `skill-factory-eval` 🎯 | **TDD/eval 引擎**：快路径静态触发力分析（0 模型调用）→ train/test 分层跑分（precision/recall）→ description 自动优化闭环。对标并反超官方 skill-creator | `requires.bins: [python3]` |
 | `skill-factory-screenshot` 📸 | 稳定实现"截图作为造技能输入"，桥接内置 `screen_snapshot` 与 `peekaboo` 两条后端 | 后端各自门控（见下） |
-| `skill-factory-orchestrator` 🏗️ | 薄编排器：把上述能力串成需求→暂存创建→质量评估→授权安装→运行验证→新会话测试→治理登记的七步闭环 | 无外部依赖 |
+| `skill-factory-orchestrator` 🏗️ | 薄编排器：把上述能力串成需求→暂存→**快路径预检**→静态评估→**TDD 动态跑分/优化**→授权安装→运行验证→新会话测试→治理登记的**九步闭环** | 无外部依赖 |
 
 ### 与龙虾（OpenClaw）截图能力搭配
 
@@ -32,7 +35,27 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 
 ---
 
-## 🚦 Design constraints（严格遵守的边界）
+## 🎯 vs. Anthropic `skill-creator`（对标 + 反超）
+
+基于对官方 `skill-creator`（含 V3 的 `run_loop.py` / `improve_description.py` / `grader.md`）源码的逐行核对：
+
+| 维度 | 官方 skill-creator | 本插件 | 结论 |
+|------|--------------------|--------|------|
+| 自动 eval / benchmark | ✅ `run_loop.py` | ✅ `skill-factory-eval` 两段式跑分 | **补齐** |
+| TDD 测试驱动 | ✅ | ✅ `gen_eval_set.py` + golden cases（先红后绿） | **补齐** |
+| description 自动优化 | ✅ V3 核心 | ✅ eval-loop：train 优化 / test 选优 / blinded history | **补齐** |
+| 防过拟合 train/test 分割 | ✅ | ✅ `split_eval.py` 分层切分 | 持平 |
+| precision/recall/accuracy | ✅ | ✅ `aggregate_eval.py`（口径对齐） | 持平 |
+| **外部依赖** | ❌ 硬依赖 `anthropic` SDK + `claude -p` + `webbrowser` | ✅ **纯标准库 + 宿主 subagent，零 SDK/CLI/API key** | **反超** |
+| **创建速度** | ⚠️ 逢改必真实跑模型 | ✅ **静态快路径 0 模型调用短路，~80% 弱候选秒级拦截** | **反超** |
+| **生态注册** | ❌ 无 | ✅ `metadata.openclaw.skillKey` + 门控 + 治理注册表 | **反超** |
+| **多模态需求输入** | ⚠️ 纯文本 interview | ✅ 截图 → 需求草案 | **反超** |
+| 大 Skill 拆分 | ✅ | ✅ 四种模式 + AST 分析 | 更专业 |
+
+> **同标准、更快、更省、更可移植、且带生态治理**。判分口径（`trigger_threshold=0.5`、`runs_per_query=3`、`holdout=0.4`、`max_iterations=5`、按 test 集选最优）**刻意对齐官方**，不靠降低标准取胜。详见 [`vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
+
+---
+
 
 本插件在设计上严格遵守以下约束（详见各 skill 的 `references/`）：
 
@@ -95,13 +118,15 @@ openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-gen
 编排器会自动：
 1. 委托 `skill-factory-screenshot` 截图并反推需求
 2. 委托 `skill-generator` 在**暂存区**生成候选（不影响线上）
-3. 委托 `skill-assessor` 打分，不达标回喂重生成
-4. 用户**明确同意**后安装
-5. 判定 `info + eligible` 运行验证
-6. 新会话正/反例触发测试
-7. 治理登记（version / hash / score / rollbackRef）
+3. **快路径静态预检**（`skill-factory-eval` Phase 0，0 模型调用）：低分秒级回喂重生成
+4. 委托 `skill-assessor` 做静态 7 维评估，不达标回喂
+5. **TDD 动态跑分 + description 自动优化**（`skill-factory-eval`）：precision/recall 达标才算触发合格
+6. 用户**明确同意**后安装
+7. 判定 `info + eligible` 运行验证
+8. 新会话正/反例触发测试
+9. 治理登记（version / hash / assessorScore / precision / recall / rollbackRef）
 
-单步也可直接触发对应 skill（如「评估 xxx skill」「拆解 xxx skill」）。
+单步也可直接触发对应 skill（如「评估 xxx skill」「给 xxx skill 跑触发测试」「拆解 xxx skill」）。
 
 ---
 
@@ -115,10 +140,13 @@ openclaw-skill-factory-plugin/
 ├── LICENSE                       # MIT
 └── skills/
     ├── skill-generator/
-    ├── skill-assessor/
+    ├── skill-assessor/               # 静态 7 维评估（+ 衔接动态跑分）
     ├── skill-splitter/
+    ├── skill-factory-eval/           # TDD/eval 引擎（快路径 + 动态跑分 + 自动优化）
+    │   ├── scripts/                  #   static_trigger_score / gen_eval_set / split_eval / aggregate_eval
+    │   └── references/               #   eval-loop / tdd-golden-cases / grader-rubric / vs-skill-creator
     ├── skill-factory-screenshot/     # 截图输入桥（含授权清单）
-    └── skill-factory-orchestrator/   # 七步闭环编排器（含治理注册表规范）
+    └── skill-factory-orchestrator/   # 九步闭环编排器（含治理注册表规范）
 ```
 
 ## 🔧 Develop

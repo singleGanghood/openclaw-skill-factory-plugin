@@ -1,7 +1,7 @@
 {
   "name": "openclaw-skill-factory-plugin",
-  "version": "0.1.0",
-  "description": "OpenClaw skills-only plugin: a Skill Factory that bundles skill-generator, skill-assessor, skill-splitter, a screenshot-input bridge and an end-to-end orchestrator to continuously produce, assess, split and govern Agent Skills.",
+  "version": "0.2.0",
+  "description": "OpenClaw skills-only plugin: an eval-driven Skill Factory (generator + assessor + splitter + TDD/eval engine + screenshot bridge + orchestrator). Aligns with Anthropic skill-creator and outperforms it on dependency-freeness, speed (static fast-path) and OpenClaw ecosystem governance.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -12,6 +12,10 @@
     "skill-assessor",
     "skill-splitter",
     "skill-factory",
+    "skill-creator",
+    "eval-driven",
+    "tdd",
+    "benchmark",
     "screenshot"
   ],
   "files": [

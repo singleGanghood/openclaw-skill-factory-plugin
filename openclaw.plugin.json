@@ -1,8 +1,8 @@
 {
   "id": "openclaw-skill-factory-plugin",
   "name": "Skill Factory",
-  "description": "A skills-only OpenClaw plugin that bundles skill-generator, skill-assessor and skill-splitter, plus a screenshot-input bridge and an end-to-end orchestrator, to continuously produce, assess, split and govern new Agent Skills.",
-  "version": "0.1.0",
+  "description": "A skills-only OpenClaw plugin: an eval-driven Skill Factory bundling skill-generator, skill-assessor, skill-splitter, a TDD/eval engine (skill-factory-eval) with static fast-path + dynamic trigger benchmark & auto description optimization, a screenshot-input bridge, and an end-to-end orchestrator to continuously produce, assess, split, benchmark and govern Agent Skills. Aligns with Anthropic skill-creator and outperforms it on dependency-freeness, speed and ecosystem governance.",
+  "version": "0.2.0",
   "kind": "skills",
   "skills": [
     "./skills"
@@ -23,8 +23,18 @@
       },
       "assessorPassScore": {
         "type": "number",
-        "description": "Minimum skill-assessor score (0-100) required before a candidate may be installed.",
+        "description": "Minimum skill-assessor STATIC score (0-100) required before a candidate may proceed to dynamic eval.",
         "default": 80
+      },
+      "fastPathMinScore": {
+        "type": "number",
+        "description": "Minimum static_trigger_score (0-100) from skill-factory-eval fast-path; below this, refeed the generator with zero model calls instead of running expensive dynamic eval.",
+        "default": 70
+      },
+      "evalPassTarget": {
+        "type": "number",
+        "description": "Minimum precision AND recall (0-1) on the eval TEST set required to mark a skill's triggering as verified.",
+        "default": 0.8
       }
     }
   }

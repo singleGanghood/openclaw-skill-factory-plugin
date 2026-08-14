@@ -39,6 +39,22 @@ metadata:
 
 ---
 
+## 静态评估 vs 动态触发测试（重要：补齐短板）
+
+本 skill 做的是**静态评估**（读文件、按 rubric 打分），它**不能**证明 description 在真实
+用户 query 下是否真的会触发。**动态触发测试（precision/recall/accuracy）属于 `skill-factory-eval`**。
+
+| 层面 | 谁负责 | 产出 |
+|------|--------|------|
+| 静态：结构/规范/可读性/token 效率 | **本 skill（assessor）** | 7 维 100 分制报告 |
+| 动态：真实 query 下触发率 / 误触发 | **`skill-factory-eval`** | precision/recall + 自动优化后的 description |
+
+**推荐用法**：先用本 skill 做静态门禁（≥80 分），再交给 `skill-factory-eval` 做 TDD 动态跑分。
+两者结论都留档，才是"静态高分 + 动态可触发"的完整质量证据。图片对比表里"缺动态触发测试"
+的短板，正是由 `skill-factory-eval` 补齐。
+
+---
+
 ## When to Use
 
 ✅ **适用场景**：
@@ -113,6 +129,11 @@ find .codebuddy/skills/<target-skill>/scripts/ -type f -exec cat {} \;
 目标语言模式：[纯英文/纯中文/中英混合]
 保留现有功能，仅修复评估中发现的问题。
 ```
+
+### Phase 6: 衔接动态触发测试（静态达标后）
+
+静态评分 ≥ 80 后，**建议**交给 `skill-factory-eval` 做动态触发跑分与 description 自动优化，
+以获得 precision/recall 证据。若发现静态高分但触发不稳，回到 Phase 5 输出优化指令继续迭代。
 
 ---
 
