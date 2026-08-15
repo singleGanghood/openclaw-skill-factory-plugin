@@ -23,9 +23,9 @@ metadata:
 
 ## Overview
 
-本 Skill 对目标 Skill 包进行**全方位质量评估**，依据 Anthropic Agent Skills Specification V1.0 标准和业界最佳实践，从 7 个维度进行打分，输出百分制评估报告，并给出可直接衔接 `skill-generator` 进行优化的改进建议。
+本 Skill 对目标 Skill 包进行**全方位质量评估**，依据 Anthropic Agent Skills Specification V1.0 标准和业界最佳实践，从 7 个维度进行打分（总分 100 分），并对**涉敏 skill** 额外执行第 8 维「数据隔离与安全」安全门禁，输出百分制评估报告，并给出可直接衔接 `skill-generator` 进行优化的改进建议。
 
-**评估维度**（总分 100 分）：
+**评估维度**（总分 100 分 + 安全门禁）：
 
 | # | 维度 | 分值 | 核心关注点 |
 |---|------|------|-----------|
@@ -36,6 +36,11 @@ metadata:
 | 5 | 内容质量与可执行性 | 20分 | 指令具体性、示例、错误处理 |
 | 6 | Token 效率与渐进加载 | 10分 | 分层合理性、正文长度 |
 | 7 | 生态兼容性 | 10分 | 与其他 Skill 边界清晰、可组合 |
+| 8 | 数据隔离与安全 | 门禁（10分制） | 仅涉敏 skill 评估：脚本封装/脱敏/env-only/铁律 |
+
+> **第 8 维是安全门禁，不占基础 100 分**：仅当 skill 的 `securityMode != none`（涉敏，
+> 涉及内部接口/私有数据）时启用。评分 < 6 分则**一票否决**——整体判定「不达标」，必须回喂
+> `skill-data-guard` 加固。非涉敏 skill 记 `N/A`，不影响总分。
 
 ---
 
@@ -102,6 +107,9 @@ find .codebuddy/skills/<target-skill>/scripts/ -type f -exec cat {} \;
 ### Phase 3: 逐维度评分
 
 按照 [references/scoring-rubric.md](references/scoring-rubric.md) 中的详细评分标准，逐项打分。
+
+**第 8 维「数据隔离与安全」仅在 skill 的 `securityMode != none`（涉敏）时评估**；
+判定依据见 `skill-data-guard/references/keyword-trigger-map.md`。非涉敏 skill 记 `N/A`。
 
 **每个维度必须输出**：
 - 得分（x/满分）

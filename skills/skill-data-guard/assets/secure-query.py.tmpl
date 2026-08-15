@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""
+数据边界脚本 —— 由 skill-data-guard 注入。
+
+【铁律 · 不可违反】
+1. 原始数据只存在于本进程内存，绝不 print 原始响应。
+2. 凭证 / 实例ID 只从环境变量读取，绝不硬编码、绝不出现在 stdout。
+3. 只输出脱敏后的"结论"，不输出可还原的私有数据。
+4. 原始数据不落盘；必须落盘需加密且用后删除（见 references/data-isolation-patterns.md）。
+
+生成说明（由 skill-data-guard / skill-generator 在注入时完成）：
+- 把 __ENV_PREFIX__ 替换为 skill 名的 UPPER_SNAKE_CASE（如 INTERNAL_KB_QUERY）。
+- 按实际接口调整 ALLOWED_FIELDS（字段白名单）与 SENSITIVE_KEYS（敏感字段）。
+- 接口路径/参数按实际接口调整 fetch() 内部实现。
+"""
+
+import os
+import sys
+import json
+import hashlib
+import urllib.request
+import urllib.parse
+
+# ---- 环境注入（env-only，不写死、不进上下文）----
+API = os.environ.get("__ENV_PREFIX___API", "")
+TOKEN = os.environ.get("__ENV_PREFIX___TOKEN", "")
+INSTANCE_ID = os.environ.get("__ENV_PREFIX___INSTANCE_ID", "")
+
+# ---- 字段白名单：只有这些字段允许进入结论 ----
+ALLOWED_FIELDS = {"doc_id", "title", "summary"}
+
+# ---- 敏感字段：即使出现也一律打码 ----
+SENSITIVE_KEYS = {"owner", "uin", "phone", "email", "secret"}
+
+
+def mask(value):
+    """敏感值打码：保留首尾，中间用 * 替代。"""
+    if not isinstance(value, str):
+        return value
+    if len(value) <= 2:
+        return "*" * len(value)
+    return value[0] + "*" * (len(value) - 2) + value[-1]
+
+
+def sanitize(record):
+    """只保留白名单字段，并对敏感值脱敏。"""
+    clean = {k: record[k] for k in ALLOWED_FIELDS if k in record}
+    for k in SENSITIVE_KEYS:
+        if k in record:
+            clean[k] = mask(str(record[k]))
+    return clean
+
+
+def fetch(keyword):
+    """调用内部接口；原始数据只在本函数局部变量中存活。"""
+    if not API or not TOKEN:
+        raise RuntimeError("missing env: __ENV_PREFIX___API / __ENV_PREFIX___TOKEN")
+    sep = "&" if "?" in API else "?"
+    url = API + sep + urllib.parse.urlencode({"q": keyword})
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": "Bearer " + TOKEN,
+            "X-Instance-Id": INSTANCE_ID,
+        },
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read())          # <- 原始数据仅存此局部变量
+
+
+def main(keyword):
+    raw = fetch(keyword)                         # 原始数据进入内存
+    records = raw.get("data", [])
+    reduced = [sanitize(r) for r in records]     # 进程内完成脱敏
+    # stdout 唯一出口：只输出结论 + 脱敏结果 + 哈希，不含 ID / Token / 原始数据
+    print(json.dumps({
+        "hit_count": len(reduced),
+        "top_titles": [r.get("title") for r in reduced[:3]],
+        "digest": hashlib.sha256(
+            json.dumps([r.get("doc_id") for r in reduced]).encode("utf-8")
+        ).hexdigest()[:16],
+    }, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "")

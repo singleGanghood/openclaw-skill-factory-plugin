@@ -9,18 +9,19 @@
 
 > 把 `skill-generator` / `skill-assessor` / `skill-splitter` 叠加 **TDD/eval 动态跑分引擎** 与"看屏截图输入"，封装成一个可直接开源、可通过 `openclaw plugins` 命令管理的插件。
 >
-> 🎯 **对标 Anthropic 官方 `skill-creator` 并反超**：能力全面对齐（自动 eval / TDD / description 自动优化 / 防过拟合 train-test 分割），并在**零外部依赖、创建速度（静态快路径短路）、幂等安装（内容寻址四态收敛）、OpenClaw 生态注册、多模态需求输入、治理**六个维度更强。逐条对比见 [`skills/skill-factory-eval/references/vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
+> 🎯 **对标 Anthropic 官方 `skill-creator` 并反超**：能力全面对齐（自动 eval / TDD / description 自动优化 / 防过拟合 train-test 分割），并在**零外部依赖、创建速度（静态快路径短路）、幂等安装（内容寻址四态收敛）、OpenClaw 生态注册、多模态需求输入、治理、数据守卫（加密/脱敏/防泄露）**七个维度更强。逐条对比见 [`skills/skill-factory-eval/references/vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
 
 ---
 
 ## ✨ What's inside
 
-This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles **6 skills**:
+This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles **7 skills**:
 
 | Skill | 作用 | 门禁 (metadata.openclaw) |
 |-------|------|--------------------------|
-| `skill-generator` 🏭 | 把自然语言需求转成标准 Skill 候选，补齐触发边界、输入输出、依赖、权限与 eval | 无外部依赖 |
-| `skill-assessor` 📊 | 静态 7 维评估（结构/frontmatter/正文/token 效率/生态兼容等），并衔接动态跑分 | `requires.bins: [bash]` |
+| `skill-generator` 🏭 | 把自然语言需求转成标准 Skill 候选，补齐触发边界、输入输出、依赖、权限与 eval；关键词命中涉敏时自动注入数据守卫 | 无外部依赖 |
+| `skill-data-guard` 🛡️ | **数据守卫能力包**：给调用内部接口/私有知识库的 Skill 注入数据边界（加密传输、env-only 凭证、stdout 脱敏、数据不进上下文） | 无外部依赖 |
+| `skill-assessor` 📊 | 静态 7 维评估（结构/frontmatter/正文/token 效率/生态兼容等）+ 涉敏 skill 数据隔离门禁，并衔接动态跑分 | `requires.bins: [bash]` |
 | `skill-splitter` 🪓 | 识别大 Skill 的职责/依赖/数据契约，生成可审阅的子 Skill 与编排器提案（四种模式 + AST 分析） | `requires.bins: [python3]` |
 | `skill-factory-eval` 🎯 | **TDD/eval 引擎**：快路径静态触发力分析（0 模型调用）→ train/test 分层跑分（precision/recall）→ description 自动优化闭环。对标并反超官方 skill-creator | `requires.bins: [python3]` |
 | `skill-factory-screenshot` 📸 | 稳定实现"截图作为造技能输入"，桥接内置 `screen_snapshot` 与 `peekaboo` 两条后端 | 后端各自门控（见下） |
@@ -54,6 +55,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 | **幂等安装** | ❌ 手动拷贝，重复安装产生漂移 | ✅ `install_skill.py` **内容寻址四态收敛**（install/noop/conflict/upgrade）+ 原子转正 + 查重登记，CI 反复跑结果稳定 | **反超** |
 | **生态注册** | ❌ 无 | ✅ `metadata.openclaw.skillKey` + 门控 + 治理注册表 | **反超** |
 | **多模态需求输入** | ⚠️ 纯文本 interview | ✅ 截图 → 需求草案 | **反超** |
+| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏） | ✅ `skill-data-guard`：接口加密传输 + env-only 凭证 + stdout 脱敏 + 数据不进上下文 | **反超** |
 | 大 Skill 拆分 | ✅ | ✅ 四种模式 + AST 分析 | 更专业 |
 
 > **同标准、更快、更省、更可移植、且带生态治理**。判分口径（`trigger_threshold=0.5`、`runs_per_query=3`、`holdout=0.4`、`max_iterations=5`、按 test 集选最优）**刻意对齐官方**，不靠降低标准取胜。详见 [`vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
@@ -131,7 +133,9 @@ openclaw gateway restart
 
 ```bash
 # 只允许某个 agent 使用工厂类 skill
-openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-generator","skill-assessor","skill-splitter","skill-factory-screenshot"]'
+# 注意：orchestrator 的 Step03 快路径预检、Step05 TDD 跑分依赖 skill-factory-eval，
+#       涉敏 skill 的数据守卫注入依赖 skill-data-guard，二者缺一会导致编排器断链。
+openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-generator","skill-data-guard","skill-assessor","skill-factory-eval","skill-splitter","skill-factory-screenshot"]'
 ```
 
 ---
@@ -146,14 +150,25 @@ openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-gen
 1. 委托 `skill-factory-screenshot` 截图并反推需求
 2. 委托 `skill-generator` 在**暂存区**生成候选（不影响线上）
 3. **快路径静态预检**（`skill-factory-eval` Phase 0，0 模型调用）：低分秒级回喂重生成
-4. 委托 `skill-assessor` 做静态 7 维评估，不达标回喂
+4. 委托 `skill-assessor` 做静态 7 维评估（涉敏 skill 叠加「数据隔离与安全」门禁），不达标回喂
 5. **TDD 动态跑分 + description 自动优化**（`skill-factory-eval`）：precision/recall 达标才算触发合格
 6. 用户**明确同意**后**幂等安装**（`install_skill.py`：内容寻址四态收敛 install/noop/conflict/upgrade，原子转正 + 并发锁，`--dry-run` 可先预演）
 7. 判定 `info + eligible` 运行验证
 8. 新会话正/反例触发测试
-9. **幂等治理登记**（`(name, version, contentHash)` 幂等键查重，version / hash / assessorScore / precision / recall / rollbackRef）
+9. **幂等治理登记**（`(name, version, contentHash)` 幂等键查重，version / hash / assessorScore / precision / recall / securityMode / rollbackRef）
 
 单步也可直接触发对应 skill（如「评估 xxx skill」「给 xxx skill 跑触发测试」「拆解 xxx skill」）。
+
+### 涉敏数据守卫（关键词自动触发）
+
+造一个调用内部接口/私有知识库的 skill 时，只要需求里带**涉敏关键词**（内部知识库、私有数据、
+加密、脱敏、防泄露、内部接口等），生成器会自动进入 `data-guard` 模式，往 skill 里注入：
+
+- `scripts/secure_query.py`：接口调用封闭在脚本内，凭证/实例ID 走环境变量，stdout 只输出脱敏结论
+- `Data Boundary` 铁律章节：数据不进 session、思考过程不透传
+- description 的 `DATA-GUARD` 声明
+
+> 「帮我做一个查询内部知识库的 skill，数据要加密、不能泄露到会话和思考过程里」
 
 ---
 
@@ -167,7 +182,8 @@ openclaw-skill-factory-plugin/
 ├── LICENSE                       # MIT
 └── skills/
     ├── skill-generator/
-    ├── skill-assessor/               # 静态 7 维评估（+ 衔接动态跑分）
+    ├── skill-data-guard/             # 数据守卫能力包（脚本模板 + 隔离模式 + 关键词映射）
+    ├── skill-assessor/               # 静态 7 维评估 + 数据隔离门禁（+ 衔接动态跑分）
     ├── skill-splitter/
     ├── skill-factory-eval/           # TDD/eval 引擎（快路径 + 一键全自动闭环 + 可视化）
     │   ├── scripts/                  #   static_trigger_score / gen_eval_set / split_eval / aggregate_eval

@@ -22,6 +22,7 @@
       "version": "1.0.0",
       "contentHash": "sha256:...",       // SKILL.md + 资源文件内容哈希，作为不可变快照证据
       "assessorScore": 88,                // skill-assessor 给出的百分制分数
+      "securityMode": "none",             // none | basic-guard | data-guard（涉敏等级，审计用）
       "assessorReportRef": ".skill-factory/reports/expense-filler-1.0.0.md",
       "verifiedAt": "2026-08-14T10:00:00+08:00",
       "verifiedBy": "orchestrator",       // 或具体 agent / 用户 id

@@ -142,6 +142,9 @@ Do NOT use for [排除场景].
 **Cause:** ...
 **Solution:** ...
 
+## Data Boundary（可选，涉敏 skill 必加）
+（数据边界铁律：凭证 env-only、stdout 只输出脱敏结论、数据不进上下文、字段白名单、哈希化）
+
 ## Dependencies
 ```
 
@@ -167,3 +170,4 @@ Do NOT use for [排除场景].
 - [ ] 正文有 Quick Reference / Workflow / Examples
 - [ ] 正文 ≤5000 字 / ≤500 行
 - [ ] 所有 references/ 文件在正文中有引用入口
+- [ ] 涉敏 skill（securityMode != none）已注入 scripts/secure_query.py 且含 Data Boundary 铁律

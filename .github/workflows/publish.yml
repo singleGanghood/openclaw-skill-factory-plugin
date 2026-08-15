@@ -21,6 +21,9 @@ jobs:
       - name: Validate plugin manifest & bundled skills
         run: node scripts/validate.mjs
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          npm publish --access public
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm dist-tag add openclaw-skill-factory-plugin@${VERSION} ${GITHUB_REF_NAME}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -2,7 +2,7 @@
 
 > 基于对官方 `anthropics-skills/skills/skill-creator`（含 V3 的 `run_loop.py` /
 > `improve_description.py` / `grader.md` / eval-viewer）源码的逐行核对。
-> 结论：**能力全面对齐，并在"零依赖 / 速度 / 生态 / 多模态输入 / 治理"五个维度反超。**
+> 结论：**能力全面对齐，并在"零依赖 / 速度 / 生态 / 多模态输入 / 治理 / 数据守卫"六个维度反超。**
 
 ## 一、能力对齐表（官方有的，本插件都补齐了）
 
@@ -18,6 +18,7 @@
 | 防过拟合 train/test 分割 | ✅ stratified holdout | ✅ **`split_eval.py` 分层切分（对齐官方语义）** | 持平 |
 | precision/recall/accuracy | ✅ | ✅ `aggregate_eval.py`（对齐官方口径） | 持平 |
 | 安全/合规扫描 | ✅ | ✅ assessor `check_structure.sh` + rubric | 持平 |
+| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏能力） | ✅ **`skill-data-guard`：接口加密传输 + env-only 凭证 + stdout 脱敏 + 数据不进上下文** | **反超** |
 | 大 Skill 拆分 | ✅ 上下文管理 | ✅ splitter **四种模式 + AST 分析** | **本地更专业** |
 | 元 Skill / 编排入口 | ✅ skill-creator 本体 | ✅ **skill-factory-orchestrator 九步闭环** | 补齐 |
 | 打包 | ✅ `package_skill.py` | ✅ npm 分发（包结构已按 `openclaw.plugin.json` 规范预置，未来支持 `openclaw plugins install`） | 持平（生态化） |
@@ -65,6 +66,17 @@ per-agent eligible、治理注册表（`.skill-factory/registry.json`）联动�
 **本插件** `skill-factory-screenshot` 支持**截图 → 需求草案**（看设计稿/现有工具 UI 反推需求），
 输入端更宽，尤其适合"照着一个界面造 skill"。
 
+### 反超 7：数据守卫 / 隐私防泄露 → 官方完全没有
+官方 skill-creator 只负责"生成 skill"，**不负责**给 skill 注入运行时数据加密/脱敏/防泄露能力——
+生成的 skill 若调用内部接口，私有数据会被原样带回上下文。
+**本插件** `skill-data-guard` 在生成涉敏 skill（内部接口/私有知识库）时自动注入数据边界：
+- 接口数据**加密传输**（强制 HTTPS）+ 凭证/实例ID **env-only**（不硬编码、不进上下文）；
+- stdout **只输出脱敏结论**，私有数据不进 session；
+- 原始数据只在脚本进程内存中存活，**思考过程无从透传**。
+
+再配合 assessor 第 8 维「数据隔离与安全」门禁（涉敏 skill < 6 分一票否决）与治理登记
+`securityMode` 审计字段，形成"生成即安全"的闭环。官方无对应能力。
+
 ### 加分：治理与双事实源分离 → 面向生产而非单机
 官方产物是本地 skill + 一份 HTML 报告。
 **本插件**把"能不能用（eligible）"与"哪个版本验证过（registry）"两个事实源显式分离，
@@ -81,7 +93,7 @@ per-agent eligible、治理注册表（`.skill-factory/registry.json`）联动�
 
 ## 四、一句话总结
 
-> **同标准、更快、更省、更可移植、且带生态治理**——
+> **同标准、更快、更省、更可移植、且带生态治理与数据守卫**——
 > 官方 skill-creator 是"单机 Claude Code 里的一等公民"；
 > 本插件把它的 eval-driven 内核搬进 OpenClaw 生态，去掉外部依赖、加上快路径与治理，
 > 在专业度上对齐并在工程化维度反超。

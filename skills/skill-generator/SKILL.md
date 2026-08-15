@@ -62,6 +62,21 @@ metadata:
 | **边界** | 什么情况不应该触发？ | 从功能推导 |
 | **类型** | 创作型/工作流编排型/MCP增强型？ | 从功能推导 |
 | **资源** | 需要 scripts/references/assets？ | 按需 |
+| **安全级别** | 是否涉敏（内部接口/私有数据/加密/脱敏）？ | 从关键词推导 |
+
+### Phase 1.5: 安全模式判定（关键词扫描）
+
+扫描用户需求文本，判定 `securityMode`（映射表见
+[skill-data-guard/references/keyword-trigger-map.md](../skill-data-guard/references/keyword-trigger-map.md)）：
+
+| 模式 | 触发 | 注入动作 |
+|------|------|----------|
+| `data-guard` | 命中 L1（内部知识库/私有数据/加密/脱敏/防泄露/内部接口等） | 注入完整数据守卫骨架 + 铁律 + description 安全声明 |
+| `basic-guard` | 命中 L2（调用接口/查询数据等） | 注入 stdout 白名单 + env-only 凭证约束 |
+| `none` | 无命中 | 不注入 |
+
+> 判定结果 `securityMode` 必须显式传递到 Phase 2 注入、评估器「数据隔离」维度、
+> 编排器治理登记三个环节。
 
 ### Phase 2: 生成 Skill 骨架
 
@@ -152,6 +167,21 @@ description: |
 **Solution:** ...
 ```
 
+#### 2.3 数据守卫注入（securityMode != none 时）
+
+当 Phase 1.5 判定 `securityMode` 为 `data-guard` 或 `basic-guard` 时，委托 `skill-data-guard`
+注入数据边界能力：
+
+1. 复制 [skill-data-guard/assets/secure-query.py.tmpl](../skill-data-guard/assets/secure-query.py.tmpl)
+   到 `<skill-name>/scripts/secure_query.py`，并把 `__ENV_PREFIX__` 替换为 skill 名的 `UPPER_SNAKE_CASE`。
+2. 在 SKILL.md 正文写入「Data Boundary / 数据边界铁律」章节（规范见
+   [skill-data-guard/references/data-isolation-patterns.md](../skill-data-guard/references/data-isolation-patterns.md)）。
+3. `data-guard` 时在 description 追加安全声明：
+   `DATA-GUARD: sanitizes all outputs, never emits raw data into context.`
+4. `basic-guard` 仅注入 stdout 白名单 + env-only 凭证约束，不强制加密落盘。
+
+**硬性红线**：description 只声明「涉及数据隔离」，绝不写真实数据（接口地址/实例ID/字段名）。
+
 ### Phase 3: 质量校验
 
 生成完毕后自动检查以下清单：
@@ -167,6 +197,7 @@ description: |
 - [ ] 指令具体可执行，非模糊描述
 - [ ] 包含 Examples 和 Troubleshooting
 - [ ] references/ 中的文件在 Quick Reference 中有引用
+- [ ] 若 securityMode != none：scripts/secure_query.py 已注入、SKILL.md 含 Data Boundary 铁律、description 含 DATA-GUARD 声明
 
 ### Phase 4: 输出与安装
 

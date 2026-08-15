@@ -82,10 +82,15 @@ metadata:
 若用户提供的是**截图/设计稿/现有工具界面**，先委托 `skill-factory-screenshot` 产出 `requirementDraft`；
 否则直接从用户描述提炼：功能、边界、输入/输出、触发词、是否需要脚本/依赖。
 
+**同时判定 `securityMode`**：扫描需求文本，命中涉敏关键词（内部知识库/私有数据/加密/脱敏/
+防泄露/内部接口等）则 `securityMode = data-guard` 或 `basic-guard`，否则 `none`。
+映射表见 `skill-data-guard/references/keyword-trigger-map.md`。
+
 ### Step 02 — 暂存创建（隔离候选）
-委托 `skill-generator` 生成骨架。**门禁**：
+委托 `skill-generator` 生成骨架，并**显式传入 Step 01 判定的 `securityMode`**。**门禁**：
 - 只写入**暂存目录**（如 `.skill-factory/staging/<name>/`），不写入生效目录
 - **不自动安装**、**不覆盖同名已有 skill**（同名冲突则改名或提示）
+- `securityMode != none` 时，generator 需注入数据守卫骨架 + Data Boundary 铁律（见 `skill-data-guard`）
 
 ### Step 03 — 快路径静态预检（0 模型调用，秒级）★提速核心
 委托 `skill-factory-eval` 的 Phase 0：
@@ -97,7 +102,8 @@ python3 <eval-skill>/scripts/static_trigger_score.py .skill-factory/staging/<nam
 - **≥70 分**：进入 Step 04。
 
 ### Step 04 — 静态质量评估（结构/安全/规范）
-委托 `skill-assessor` 对暂存候选做**静态 7 维**打分（结构/frontmatter/正文/token 效率/生态兼容等）。
+委托 `skill-assessor` 对暂存候选做**静态 7 维**打分（结构/frontmatter/正文/token 效率/生态兼容等），
+并对 `securityMode != none` 的候选启用**第 8 维「数据隔离与安全」门禁**（< 6 分一票否决）。
 **门禁**：静态高分 ≠ 运行时可用、≠ 触发准确。低于阈值（建议 ≥ 80）则拿"优化指令"回喂 Step 02。
 （可选）若候选超阈值过大（>10 分钟 / >20 文件 / ≥3 功能域），委托 `skill-splitter` 拆分。
 
@@ -145,7 +151,7 @@ python3 <orchestrator>/scripts/install_skill.py \
 `install_skill.py` 在转正时**顺带完成幂等登记**（Step 06/09 合一执行），按
 [references/governance-registry.md](references/governance-registry.md) 以 **`(name, version, contentHash)`
 为幂等键**追加记录：`name / version / contentHash / assessorScore / evalPrecision / evalRecall /
-verifiedAt / verifiedBy / rollbackRef`。
+securityMode / verifiedAt / verifiedBy / rollbackRef`。
 - **幂等键查重**：已存在完全相同的 `(name, version, contentHash)` → **不重复追加**（noop）。
 - 若只想单独登记而不转正，可对已生效目录再跑一次（noop 分支会补记缺失的 record）。
 **约束**：本步骤**只写治理注册表，绝不修改 eligible / per-agent skills 配置**——两个事实源分离。
@@ -165,6 +171,16 @@ verifiedAt / verifiedBy / rollbackRef`。
 7. Step07 eligible 判定（需 peekaboo，os=darwin）通过
 8. Step08 新会话正/反例测试通过
 9. Step09 登记 `expense-filler@1.0.0 / hash / assessor=85 / precision=1.0 / recall=0.9 / verified`
+
+### 示例：涉敏数据守卫（关键词触发）
+**用户说：**「帮我做一个查询内部知识库的 skill，数据要加密、不能泄露到会话和思考过程」
+1. Step01 关键词扫描 → 命中 L1 → `securityMode = data-guard`
+2. Step02 generator 注入 `secure_query.py` + Data Boundary 铁律 + description 的 DATA-GUARD 声明
+3. Step03 快路径静态预检通过
+4. Step04 assessor 启用第 8 维「数据隔离与安全」→ 8 分（脚本封装/脱敏/env-only/铁律齐备）
+5. Step05 eval 动态跑分通过
+6. Step06 用户同意 → 转正
+7. Step09 登记时追加 `securityMode: "data-guard"`
 
 ---
 
