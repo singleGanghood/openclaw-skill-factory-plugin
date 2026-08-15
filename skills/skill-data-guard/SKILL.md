@@ -4,7 +4,7 @@ description: |
   ALWAYS invoke this skill when the user asks to build, harden, or wrap a Skill that
   calls internal / private APIs or knowledge bases, and requires data encryption,
   output sanitization, and leak prevention. 为调用内部接口/私有知识库的 Skill 注入
-  「数据边界」能力：接口数据加密传输、凭证与实例ID env-only、stdout 只输出脱敏结论、
+  「数据边界」能力：接口数据加密传输、凭证与实例ID 进程内自取、stdout 只输出脱敏结论、
   原始数据不进 session 上下文、思考过程不透传私有数据。
   Trigger keywords: '数据守卫', '数据隔离', '数据加密', '脱敏', '防泄露', '禁止输出',
   '内部知识库', '私有数据', '敏感数据', '内部接口', '内部API', '涉密', 'data guard',
@@ -44,13 +44,13 @@ metadata:
 本能力包遵循一条核心原则：
 
 > **把"取数"和"用数"全部封闭在脚本进程内部，脚本 stdout 只吐出脱敏后的最小结论。**
-> 凭证 / 实例ID 走环境变量注入，原始数据只在脚本内存中存活，从不打印、从不落盘。
+> 凭证 / 实例ID 在进程内自取（链式签发 / 元数据服务 / 本地身份），原始数据只在脚本内存中存活，从不打印、从不落盘。
 
 三个需求与落点的对应：
 
 | 需求 | 落点 | 手段 |
 |------|------|------|
-| 接口数据加密 | 传输层 + 存储层 | 强制 HTTPS + 凭证 env-only + 数据不落盘（进阶：AES 加密落盘） |
+| 接口数据加密 | 传输层 + 存储层 | 强制 HTTPS + 凭证进程内自取 + 数据不落盘（进阶：AES 加密落盘） |
 | 禁止输出到 session | 脚本 stdout | 字段白名单 + 敏感字段打码 + 只输出结论不输出原始响应 |
 | 思考过程中不透传 | 数据不进上下文 | 数据只在脚本进程内，LLM 只消费结论，无从复述原始数据 |
 
@@ -60,7 +60,7 @@ metadata:
 
 ✅ **适用**：
 - 新建一个调用内部接口 / 私有知识库 / 私有 API 的 Skill
-- 给已有 Skill 加固数据边界（补脚本封装、脱敏、env-only 凭证）
+- 给已有 Skill 加固数据边界（补脚本封装、脱敏、进程内自取凭证）
 - 需要保证私有数据不进 session、不进 thinking 的涉敏场景
 
 ❌ **不适用**：
@@ -77,7 +77,7 @@ metadata:
 判定 `securityMode`：
 
 - `data-guard`（L1 强触发）：注入完整数据守卫骨架 + 数据边界铁律
-- `basic-guard`（L2 部分触发）：只注入 stdout 白名单 + env-only 凭证约束，不强制加密落盘
+- `basic-guard`（L2 部分触发）：只注入 stdout 白名单 + 进程内自取凭证约束，不强制加密落盘
 - `none`（L0）：不注入
 
 ### Step 2 — 注入数据边界脚本
@@ -86,7 +86,11 @@ metadata:
 `scripts/secure_query.py`，并完成：
 
 1. 把 `__ENV_PREFIX__` 替换为 skill 名的 `UPPER_SNAKE_CASE`（如 `INTERNAL_KB_QUERY`）
-2. 按实际接口调整 `ALLOWED_FIELDS`（字段白名单）与 `SENSITIVE_KEYS`（敏感字段）
+2. 按实际环境调整 `AUTH_API`（内部鉴权接口地址）与 `API`（敏感数据接口地址）的内网默认值
+3. 按实际接口调整 `ALLOWED_FIELDS`（字段白名单）与 `SENSITIVE_KEYS`（敏感字段）
+
+> 脚本采用**链式内部调用**（免外部环境变量）：① 自取实例ID → ② 用 ID 换临时 token →
+> ③ 用 token 取数据。ID/凭证/原始数据全程只在进程内存，stdout 只输出脱敏结论。
 
 ### Step 3 — 写入「数据边界铁律」章节
 
@@ -95,7 +99,7 @@ metadata:
 ```markdown
 ## Data Boundary / 数据边界铁律
 
-1. **凭证与实例ID env-only**：从环境变量读取，禁止硬编码到 SKILL.md 或命令行参数。
+1. **凭证与实例ID 进程内自取**：从元数据服务/链式签发/本地身份获取，禁止硬编码到 SKILL.md 或命令行参数。
 2. **数据不进上下文**：脚本 stdout 只输出脱敏结论，禁止 print 原始响应。
 3. **思考不透传**：模型只消费脚本返回的结论，不得复述、引用任何原始字段。
 4. **字段白名单**：默认只放行非敏感字段，敏感字段走 mask 打码。
@@ -126,14 +130,14 @@ DATA-GUARD: sanitizes all outputs, never emits raw data into context.
 3. 在 SKILL.md 写入「Data Boundary 铁律」
 4. description 追加 `DATA-GUARD` 声明
 
-**结果：** 凭证 env-only、stdout 只吐脱敏结论、原始数据不进上下文。
+**结果：** 凭证进程内自取（链式签发）、stdout 只吐脱敏结论、原始数据不进上下文。
 
 ---
 
 ## Guidelines / Constraints
 
 - **数据边界是硬约束，不是建议**：违反任意一条铁律即视为加固失败。
-- **凭证永不进文件**：接口地址、Token、实例 ID 一律走环境变量，禁止硬编码。
+- **凭证永不进文件**：接口地址（内网默认内置）、Token（链式签发）、实例 ID（元数据服务自取）都在进程内获取，禁止硬编码。
 - **结论 ≠ 数据**：返回"命中 3 条、结论是 X"，而非返回 3 条原始记录。
 - **白名单优先**：默认只放行非敏感字段，新增字段需先改白名单再决定放行。
 
@@ -141,10 +145,10 @@ DATA-GUARD: sanitizes all outputs, never emits raw data into context.
 
 ## Common Issues / Troubleshooting
 
-### Error: 脚本报 "missing env"
+### Error: 脚本报 "无法在进程内自取实例ID / 凭证"
 
-**Cause:** 运行时未注入 `__ENV_PREFIX___API` / `__ENV_PREFIX___TOKEN`。
-**Solution:** 由运行时/调度器注入环境变量，不要写进 SKILL.md 或命令行参数。
+**Cause:** 实例元数据服务不可达、或内部鉴权接口返回异常、或本地身份文件缺失。
+**Solution:** 确认运行在支持元数据服务的实例上，或临时用 `<PREFIX>_INSTANCE_ID` / `<PREFIX>_TOKEN` 作调试覆盖；不要写进 SKILL.md 或命令行参数。
 
 ### Error: 担心原始数据被日志/trace 采集
 
@@ -157,4 +161,4 @@ DATA-GUARD: sanitizes all outputs, never emits raw data into context.
 ## Dependencies
 
 - Python3（标准库即可，无需第三方依赖）
-- 运行时注入环境变量：`<PREFIX>_API` / `<PREFIX>_TOKEN` / `<PREFIX>_INSTANCE_ID`
+- 零外部环境变量：实例ID 自取、凭证链式签发；`<PREFIX>_API` / `<PREFIX>_TOKEN` / `<PREFIX>_INSTANCE_ID` 仅作可选调试覆盖

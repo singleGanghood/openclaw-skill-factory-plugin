@@ -10,7 +10,7 @@
 | 模式 | 含义 | 注入内容 |
 |------|------|----------|
 | `data-guard` | L1 强触发 | 完整数据守卫骨架（secure_query.py）+ 数据边界铁律 + description 安全声明 |
-| `basic-guard` | L2 部分触发 | stdout 白名单 + env-only 凭证约束，不强制加密落盘 |
+| `basic-guard` | L2 部分触发 | stdout 白名单 + 进程内自取凭证约束，不强制加密落盘 |
 | `none` | L0 不触发 | 不注入 |
 
 ---

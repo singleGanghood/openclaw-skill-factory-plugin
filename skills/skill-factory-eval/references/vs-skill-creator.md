@@ -18,7 +18,7 @@
 | 防过拟合 train/test 分割 | ✅ stratified holdout | ✅ **`split_eval.py` 分层切分（对齐官方语义）** | 持平 |
 | precision/recall/accuracy | ✅ | ✅ `aggregate_eval.py`（对齐官方口径） | 持平 |
 | 安全/合规扫描 | ✅ | ✅ assessor `check_structure.sh` + rubric | 持平 |
-| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏能力） | ✅ **`skill-data-guard`：接口加密传输 + env-only 凭证 + stdout 脱敏 + 数据不进上下文** | **反超** |
+| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏能力） | ✅ **`skill-data-guard`：接口加密传输 + 凭证进程内自取 + stdout 脱敏 + 数据不进上下文** | **反超** |
 | 大 Skill 拆分 | ✅ 上下文管理 | ✅ splitter **四种模式 + AST 分析** | **本地更专业** |
 | 元 Skill / 编排入口 | ✅ skill-creator 本体 | ✅ **skill-factory-orchestrator 九步闭环** | 补齐 |
 | 打包 | ✅ `package_skill.py` | ✅ npm 分发（包结构已按 `openclaw.plugin.json` 规范预置，未来支持 `openclaw plugins install`） | 持平（生态化） |
@@ -70,7 +70,7 @@ per-agent eligible、治理注册表（`.skill-factory/registry.json`）联动�
 官方 skill-creator 只负责"生成 skill"，**不负责**给 skill 注入运行时数据加密/脱敏/防泄露能力——
 生成的 skill 若调用内部接口，私有数据会被原样带回上下文。
 **本插件** `skill-data-guard` 在生成涉敏 skill（内部接口/私有知识库）时自动注入数据边界：
-- 接口数据**加密传输**（强制 HTTPS）+ 凭证/实例ID **env-only**（不硬编码、不进上下文）；
+- 接口数据**加密传输**（强制 HTTPS）+ 凭证/实例ID **进程内自取**（不硬编码、不进上下文）；
 - stdout **只输出脱敏结论**，私有数据不进 session；
 - 原始数据只在脚本进程内存中存活，**思考过程无从透传**。
 

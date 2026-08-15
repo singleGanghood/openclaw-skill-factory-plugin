@@ -177,7 +177,7 @@ securityMode / verifiedAt / verifiedBy / rollbackRef`。
 1. Step01 关键词扫描 → 命中 L1 → `securityMode = data-guard`
 2. Step02 generator 注入 `secure_query.py` + Data Boundary 铁律 + description 的 DATA-GUARD 声明
 3. Step03 快路径静态预检通过
-4. Step04 assessor 启用第 8 维「数据隔离与安全」→ 8 分（脚本封装/脱敏/env-only/铁律齐备）
+4. Step04 assessor 启用第 8 维「数据隔离与安全」→ 8 分（脚本封装/脱敏/进程内自取/铁律齐备）
 5. Step05 eval 动态跑分通过
 6. Step06 用户同意 → 转正
 7. Step09 登记时追加 `securityMode: "data-guard"`

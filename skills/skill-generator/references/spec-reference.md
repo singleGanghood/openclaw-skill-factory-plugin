@@ -143,7 +143,7 @@ Do NOT use for [排除场景].
 **Solution:** ...
 
 ## Data Boundary（可选，涉敏 skill 必加）
-（数据边界铁律：凭证 env-only、stdout 只输出脱敏结论、数据不进上下文、字段白名单、哈希化）
+（数据边界铁律：凭证进程内自取、stdout 只输出脱敏结论、数据不进上下文、字段白名单、哈希化）
 
 ## Dependencies
 ```

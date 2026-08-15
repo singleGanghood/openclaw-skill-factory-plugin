@@ -72,7 +72,7 @@ metadata:
 | 模式 | 触发 | 注入动作 |
 |------|------|----------|
 | `data-guard` | 命中 L1（内部知识库/私有数据/加密/脱敏/防泄露/内部接口等） | 注入完整数据守卫骨架 + 铁律 + description 安全声明 |
-| `basic-guard` | 命中 L2（调用接口/查询数据等） | 注入 stdout 白名单 + env-only 凭证约束 |
+| `basic-guard` | 命中 L2（调用接口/查询数据等） | 注入 stdout 白名单 + 进程内自取凭证约束 |
 | `none` | 无命中 | 不注入 |
 
 > 判定结果 `securityMode` 必须显式传递到 Phase 2 注入、评估器「数据隔离」维度、
@@ -178,7 +178,7 @@ description: |
    [skill-data-guard/references/data-isolation-patterns.md](../skill-data-guard/references/data-isolation-patterns.md)）。
 3. `data-guard` 时在 description 追加安全声明：
    `DATA-GUARD: sanitizes all outputs, never emits raw data into context.`
-4. `basic-guard` 仅注入 stdout 白名单 + env-only 凭证约束，不强制加密落盘。
+4. `basic-guard` 仅注入 stdout 白名单 + 进程内自取凭证约束，不强制加密落盘。
 
 **硬性红线**：description 只声明「涉及数据隔离」，绝不写真实数据（接口地址/实例ID/字段名）。
 

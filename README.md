@@ -20,7 +20,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 | Skill | 作用 | 门禁 (metadata.openclaw) |
 |-------|------|--------------------------|
 | `skill-generator` 🏭 | 把自然语言需求转成标准 Skill 候选，补齐触发边界、输入输出、依赖、权限与 eval；关键词命中涉敏时自动注入数据守卫 | 无外部依赖 |
-| `skill-data-guard` 🛡️ | **数据守卫能力包**：给调用内部接口/私有知识库的 Skill 注入数据边界（加密传输、env-only 凭证、stdout 脱敏、数据不进上下文） | 无外部依赖 |
+| `skill-data-guard` 🛡️ | **数据守卫能力包**：给调用内部接口/私有知识库的 Skill 注入数据边界（加密传输、凭证进程内自取、stdout 脱敏、数据不进上下文） | 无外部依赖 |
 | `skill-assessor` 📊 | 静态 7 维评估（结构/frontmatter/正文/token 效率/生态兼容等）+ 涉敏 skill 数据隔离门禁，并衔接动态跑分 | `requires.bins: [bash]` |
 | `skill-splitter` 🪓 | 识别大 Skill 的职责/依赖/数据契约，生成可审阅的子 Skill 与编排器提案（四种模式 + AST 分析） | `requires.bins: [python3]` |
 | `skill-factory-eval` 🎯 | **TDD/eval 引擎**：快路径静态触发力分析（0 模型调用）→ train/test 分层跑分（precision/recall）→ description 自动优化闭环。对标并反超官方 skill-creator | `requires.bins: [python3]` |
@@ -55,7 +55,7 @@ This is a **skills-only** plugin (no channel, no TypeScript runtime). It bundles
 | **幂等安装** | ❌ 手动拷贝，重复安装产生漂移 | ✅ `install_skill.py` **内容寻址四态收敛**（install/noop/conflict/upgrade）+ 原子转正 + 查重登记，CI 反复跑结果稳定 | **反超** |
 | **生态注册** | ❌ 无 | ✅ `metadata.openclaw.skillKey` + 门控 + 治理注册表 | **反超** |
 | **多模态需求输入** | ⚠️ 纯文本 interview | ✅ 截图 → 需求草案 | **反超** |
-| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏） | ✅ `skill-data-guard`：接口加密传输 + env-only 凭证 + stdout 脱敏 + 数据不进上下文 | **反超** |
+| **数据守卫 / 隐私防泄露** | ❌ 无（只生成 skill，不注入运行时加密/脱敏） | ✅ `skill-data-guard`：接口加密传输 + 凭证进程内自取 + stdout 脱敏 + 数据不进上下文 | **反超** |
 | 大 Skill 拆分 | ✅ | ✅ 四种模式 + AST 分析 | 更专业 |
 
 > **同标准、更快、更省、更可移植、且带生态治理**。判分口径（`trigger_threshold=0.5`、`runs_per_query=3`、`holdout=0.4`、`max_iterations=5`、按 test 集选最优）**刻意对齐官方**，不靠降低标准取胜。详见 [`vs-skill-creator.md`](skills/skill-factory-eval/references/vs-skill-creator.md)。
@@ -164,7 +164,7 @@ openclaw config set agents.main.skills '["skill-factory-orchestrator","skill-gen
 造一个调用内部接口/私有知识库的 skill 时，只要需求里带**涉敏关键词**（内部知识库、私有数据、
 加密、脱敏、防泄露、内部接口等），生成器会自动进入 `data-guard` 模式，往 skill 里注入：
 
-- `scripts/secure_query.py`：接口调用封闭在脚本内，凭证/实例ID 走环境变量，stdout 只输出脱敏结论
+- `scripts/secure_query.py`：接口调用封闭在脚本内，凭证/实例ID 进程内自取（链式签发），stdout 只输出脱敏结论
 - `Data Boundary` 铁律章节：数据不进 session、思考过程不透传
 - description 的 `DATA-GUARD` 声明
 

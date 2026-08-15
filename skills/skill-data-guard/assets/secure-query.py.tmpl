@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
 """
-数据边界脚本 —— 由 skill-data-guard 注入。
+数据边界脚本（链式内部调用版）—— 由 skill-data-guard 注入。
 
 【铁律 · 不可违反】
 1. 原始数据只存在于本进程内存，绝不 print 原始响应。
-2. 凭证 / 实例ID 只从环境变量读取，绝不硬编码、绝不出现在 stdout。
+2. 凭证 / 实例ID 在进程内自行获取（实例元数据服务 / 内部鉴权接口链式签发 / 本地身份文件），
+   绝不硬编码、绝不出现在 stdout、绝不落盘。
 3. 只输出脱敏后的"结论"，不输出可还原的私有数据。
 4. 原始数据不落盘；必须落盘需加密且用后删除（见 references/data-isolation-patterns.md）。
 
+【链式调用链路】（全程无需外部环境变量）
+  ① acquire_instance_id()      —— 从实例元数据服务 / 本地身份文件自取实例ID
+  ② acquire_credential(iid)    —— 用实例ID调内部鉴权接口，动态签发临时 token
+  ③ fetch_data(token, iid)     —— 用临时 token 调敏感接口取数据
+  ④ sanitize + 哈希             —— 进程内脱敏
+  ⑤ stdout                      —— 只输出脱敏结论（数据不外协）
+
+【可选环境变量覆盖】仅在需要手动指定时设置，默认不需要：
+  __ENV_PREFIX___AUTH_API     —— 内部鉴权接口地址（签发临时凭证）
+  __ENV_PREFIX___API          —— 敏感数据接口地址
+  __ENV_PREFIX___TOKEN        —— 固定 token（跳过链式签发，仅调试用）
+  __ENV_PREFIX___INSTANCE_ID  —— 固定实例ID（跳过自取，仅调试用）
+
 生成说明（由 skill-data-guard / skill-generator 在注入时完成）：
 - 把 __ENV_PREFIX__ 替换为 skill 名的 UPPER_SNAKE_CASE（如 INTERNAL_KB_QUERY）。
+- 按实际环境调整 AUTH_API / API 的默认内网地址。
 - 按实际接口调整 ALLOWED_FIELDS（字段白名单）与 SENSITIVE_KEYS（敏感字段）。
-- 接口路径/参数按实际接口调整 fetch() 内部实现。
 """
 
 import os
@@ -21,16 +35,70 @@ import hashlib
 import urllib.request
 import urllib.parse
 
-# ---- 环境注入（env-only，不写死、不进上下文）----
-API = os.environ.get("__ENV_PREFIX___API", "")
-TOKEN = os.environ.get("__ENV_PREFIX___TOKEN", "")
-INSTANCE_ID = os.environ.get("__ENV_PREFIX___INSTANCE_ID", "")
+# ---- 接口地址（内网地址，非机密；默认内置，可用 env 覆盖）----
+API = os.environ.get("__ENV_PREFIX___API", "https://internal-kb.example.com/v1/search")
+AUTH_API = os.environ.get("__ENV_PREFIX___AUTH_API", "https://internal-auth.example.com/v1/issue-token")
 
 # ---- 字段白名单：只有这些字段允许进入结论 ----
 ALLOWED_FIELDS = {"doc_id", "title", "summary"}
 
 # ---- 敏感字段：即使出现也一律打码 ----
 SENSITIVE_KEYS = {"owner", "uin", "phone", "email", "secret"}
+
+
+def _http_json(url, payload=None, headers=None, timeout=5):
+    """内部 HTTP 助手；返回解析后的 JSON。原始响应只在本函数局部变量存活。"""
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers or {})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def acquire_instance_id():
+    """① 进程内自取实例ID（不依赖 env）。优先级：调试覆盖 → 元数据服务 → 本地身份文件。"""
+    v = os.environ.get("__ENV_PREFIX___INSTANCE_ID", "")
+    if v:
+        return v
+    # 云实例元数据服务（AWS/腾讯云/阿里云等标准机制）
+    try:
+        req = urllib.request.Request(
+            "http://169.254.169.254/latest/meta-data/instance-id", timeout=2)
+        return urllib.request.urlopen(req).read().decode().strip()
+    except Exception:
+        pass
+    # 本地身份文件（机器自身身份）
+    for p in ("/var/lib/cloud/data/instance-id", "/etc/machine-id"):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+            if v:
+                return v
+        except Exception:
+            pass
+    raise RuntimeError("无法在进程内自取实例ID")
+
+
+def acquire_credential(instance_id):
+    """② 链式：用实例ID调内部鉴权接口，动态签发临时 token（不依赖 env）。"""
+    v = os.environ.get("__ENV_PREFIX___TOKEN", "")
+    if v:
+        return v
+    resp = _http_json(AUTH_API, payload={"instance_id": instance_id},
+                      headers={"Content-Type": "application/json"})
+    token = resp.get("token") or resp.get("credential") or resp.get("access_token")
+    if not token:
+        raise RuntimeError("鉴权接口未返回临时凭证")
+    return token
+
+
+def fetch_data(token, instance_id, keyword):
+    """③ 用临时凭证调敏感接口取数据；原始数据只在本函数局部变量存活。"""
+    sep = "&" if "?" in API else "?"
+    url = API + sep + urllib.parse.urlencode({"q": keyword})
+    return _http_json(url, headers={
+        "Authorization": "Bearer " + token,
+        "X-Instance-Id": instance_id,
+    })
 
 
 def mask(value):
@@ -51,28 +119,13 @@ def sanitize(record):
     return clean
 
 
-def fetch(keyword):
-    """调用内部接口；原始数据只在本函数局部变量中存活。"""
-    if not API or not TOKEN:
-        raise RuntimeError("missing env: __ENV_PREFIX___API / __ENV_PREFIX___TOKEN")
-    sep = "&" if "?" in API else "?"
-    url = API + sep + urllib.parse.urlencode({"q": keyword})
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": "Bearer " + TOKEN,
-            "X-Instance-Id": INSTANCE_ID,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=5) as resp:
-        return json.loads(resp.read())          # <- 原始数据仅存此局部变量
-
-
 def main(keyword):
-    raw = fetch(keyword)                         # 原始数据进入内存
+    iid = acquire_instance_id()               # ① 自取 ID（仅内存，不 print）
+    token = acquire_credential(iid)           # ② 链式签发临时凭证（仅内存，不 print）
+    raw = fetch_data(token, iid, keyword)     # ③ 取数据（仅内存，不 print）
     records = raw.get("data", [])
-    reduced = [sanitize(r) for r in records]     # 进程内完成脱敏
-    # stdout 唯一出口：只输出结论 + 脱敏结果 + 哈希，不含 ID / Token / 原始数据
+    reduced = [sanitize(r) for r in records]  # ④ 进程内脱敏
+    # ⑤ stdout 唯一出口：只输出结论 + 脱敏结果 + 哈希，不含 iid / token / 原始数据
     print(json.dumps({
         "hit_count": len(reduced),
         "top_titles": [r.get("title") for r in reduced[:3]],
