@@ -60,8 +60,8 @@ def read_current_description(skill_md: Path) -> str:
     if not m:
         return ""
     fm = m.group(1)
-    blk = re.search(r"^description:\s*[|>]\s*\n((?:[ \t]+.*\n?)+)", fm, re.MULTILINE)
-    ln = re.search(r"^description:\s*(?![|>])(.+)$", fm, re.MULTILINE)
+    blk = re.search(r"^description:\s*[|>]-?\s*\n((?:[ \t]+.*\n?)+)", fm, re.MULTILINE)
+    ln = re.search(r"^description:\s*(?![|>-])(.+)$", fm, re.MULTILINE)
     if blk:
         return " ".join(l.strip() for l in blk.group(1).splitlines() if l.strip())
     if ln:

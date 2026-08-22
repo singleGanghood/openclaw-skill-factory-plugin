@@ -25,8 +25,20 @@ IMPERATIVE_HINTS = [
     "use this skill", "always invoke", "always use", "trigger when", "use when",
     "帮我", "请", "怎么", "如何", "想要", "需要", "给我",
 ]
-# 明确的排除边界信号
-EXCLUSION_HINTS = ["do not use", "don't use", "not for", "不适用", "不要用", "禁止用于", "而不是"]
+# 明确的排除边界信号（含“不用于 / Do NOT use for”等中英措辞）
+EXCLUSION_HINTS = [
+    "do not use", "do not use for", "don't use", "not for", "not intended for",
+    "不适用", "不要用", "禁止用于", "不用于", "而不是",
+]
+# 中英文引号：ASCII 单双引号 + 中文全角引号 + 直角引号
+QUOTE_PATTERNS = [
+    r"'([^']+)'",
+    r'"([^"]+)"',
+    r"\u201c([^\u201d]+)\u201d",
+    r"\u2018([^\u2019]+)\u2019",
+    r"「([^」]+)」",
+    r"『([^』]+)』",
+]
 
 
 def parse_frontmatter(text: str):
@@ -43,9 +55,9 @@ def parse_frontmatter(text: str):
     if name_m:
         fm["name"] = name_m.group(1).strip().strip('"').strip("'")
     # description: 单行
-    desc_line = re.search(r"^description:\s*(?![|>])(.+)$", fm_raw, re.MULTILINE)
-    # description: | 块
-    desc_block = re.search(r"^description:\s*[|>]\s*\n((?:[ \t]+.*\n?)+)", fm_raw, re.MULTILINE)
+    desc_line = re.search(r"^description:\s*(?![|>-])(.+)$", fm_raw, re.MULTILINE)
+    # description: | / |- / > / >- 块（兼容 YAML 折叠标记 -）
+    desc_block = re.search(r"^description:\s*[|>]-?\s*\n((?:[ \t]+.*\n?)+)", fm_raw, re.MULTILINE)
     if desc_block:
         block = desc_block.group(1)
         # 去掉每行前导缩进
@@ -59,8 +71,10 @@ def parse_frontmatter(text: str):
 
 
 def count_trigger_keywords(desc: str) -> int:
-    """统计 description 里被引号包裹的触发短语，如 'create skill'、'评估skill'。"""
-    quoted = re.findall(r"'([^']+)'", desc) + re.findall(r'"([^"]+)"', desc)
+    """统计 description 里被引号包裹的触发短语，兼容中英文引号（如 'create skill'、\"评估skill\"、“分析这个客户”）。"""
+    quoted = []
+    for pattern in QUOTE_PATTERNS:
+        quoted += re.findall(pattern, desc)
     # 过滤掉太长的（那通常不是触发词而是句子）
     kws = [q for q in quoted if 1 <= len(q) <= 40]
     return len(set(k.lower() for k in kws))

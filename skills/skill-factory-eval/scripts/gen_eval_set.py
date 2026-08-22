@@ -30,8 +30,8 @@ def parse_frontmatter(text: str):
     name_m = re.search(r"^name:\s*(.+)$", fm_raw, re.MULTILINE)
     if name_m:
         fm["name"] = name_m.group(1).strip().strip('"').strip("'")
-    desc_block = re.search(r"^description:\s*[|>]\s*\n((?:[ \t]+.*\n?)+)", fm_raw, re.MULTILINE)
-    desc_line = re.search(r"^description:\s*(?![|>])(.+)$", fm_raw, re.MULTILINE)
+    desc_block = re.search(r"^description:\s*[|>]-?\s*\n((?:[ \t]+.*\n?)+)", fm_raw, re.MULTILINE)
+    desc_line = re.search(r"^description:\s*(?![|>-])(.+)$", fm_raw, re.MULTILINE)
     if desc_block:
         lines = [ln.strip() for ln in desc_block.group(1).splitlines()]
         fm["description"] = " ".join([l for l in lines if l])
@@ -42,8 +42,21 @@ def parse_frontmatter(text: str):
     return fm, body
 
 
+QUOTE_PATTERNS = [
+    r"'([^']+)'",
+    r'"([^"]+)"',
+    r"\u201c([^\u201d]+)\u201d",
+    r"\u2018([^\u2019]+)\u2019",
+    r"「([^」]+)」",
+    r"『([^』]+)』",
+]
+
+
 def extract_quoted(desc: str):
-    q = re.findall(r"'([^']+)'", desc) + re.findall(r'"([^"]+)"', desc)
+    """提取引号包裹的触发短语，兼容中英文引号（“分析这个客户” / "create skill"）。"""
+    q = []
+    for pattern in QUOTE_PATTERNS:
+        q += re.findall(pattern, desc)
     return [x for x in q if 1 <= len(x) <= 40]
 
 
@@ -56,6 +69,7 @@ def extract_exclusions(desc: str, body: str):
         r"[Dd]on't use (?:this skill )?for ([^.\n;]+)",
         r"不适用[:：]?\s*([^。\n;]+)",
         r"不要用于\s*([^。\n;]+)",
+        r"不用于\s*([^。\n;]+)",
         r"而不是\s*([^。\n;]+)",
     ]:
         for m in re.findall(pat, text):

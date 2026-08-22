@@ -54,34 +54,87 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # mock 后端：零模型的启发式判定器（仅用于自测闭环连通性，不代表真实触发力）
 # ---------------------------------------------------------------------------
-_WORD_RE = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
-_EXCLUSION_HINTS = ["do not use", "don't use", "not for", "不适用", "不要用", "禁止用于", "而不是"]
+# 连续中文作为整体 token（避免单字重合导致的误报），英文按词切分
+_WORD_RE = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]+")
+_EXCLUSION_HINTS = [
+    "do not use", "do not use for", "don't use", "not for", "not intended for",
+    "不适用", "不要用", "禁止用于", "不用于", "而不是",
+]
+_QUOTE_PATTERNS = [
+    r"'([^']+)'",
+    r'"([^"]+)"',
+    r"\u201c([^\u201d]+)\u201d",
+    r"\u2018([^\u2019]+)\u2019",
+    r"「([^」]+)」",
+    r"『([^』]+)』",
+]
+_EXCLUSION_FRAGMENT_PATTERNS = [
+    r"[Dd]o NOT use (?:this skill )?for\s*([^.\n;]+)",
+    r"[Dd]on't use (?:this skill )?for\s*([^.\n;]+)",
+    r"不适用[:：]?\s*([^。\n;]+)",
+    r"不要用于\s*([^。\n;]+)",
+    r"不用于\s*([^。\n;]+)",
+]
+# 相邻意图词：明显属于"评估/安装/拆分"等其它任务时压制触发
+_ADJACENT_INTENT_WORDS = ["评估", "assess", "安装", "install", "拆", "split", "排序", "算法", "sort"]
 
 
 def _tokens(text: str):
     return set(_WORD_RE.findall((text or "").lower()))
 
 
-def _quoted_keywords(desc: str):
-    q = re.findall(r"'([^']+)'", desc) + re.findall(r'"([^"]+)"', desc)
-    kws = [x for x in q if 1 <= len(x) <= 40]
-    toks = set()
-    for k in kws:
-        toks |= _tokens(k)
-    return toks
+def _quoted_keywords(desc: str) -> list[str]:
+    """返回引号包裹的触发短语列表（兼容中英文引号）。"""
+    q = []
+    for pattern in _QUOTE_PATTERNS:
+        q += re.findall(pattern, desc)
+    return [x for x in q if 1 <= len(x) <= 40]
+
+
+def _exclusion_phrases(desc: str) -> list[str]:
+    """从 '不用于 / 不适用 / Do NOT use for' 之后提取排除短语，并按分隔符拆分。"""
+    text = desc or ""
+    phrases: list[str] = []
+    for pattern in _EXCLUSION_FRAGMENT_PATTERNS:
+        for match in re.findall(pattern, text):
+            frag = match.strip().strip("、,，")
+            for part in re.split(r"[、，,;；]", frag):
+                part = part.strip().rstrip("。.;； ")
+                if 2 <= len(part) <= 40:
+                    phrases.append(part)
+    return phrases
+
+
+def _phrase_hit(query: str, phrases: list[str]) -> bool:
+    return any(phrase and phrase in query for phrase in phrases)
 
 
 def mock_grade(req: dict) -> dict:
-    """启发式：query 与被测 skill 触发词的重合度 vs 与干扰项的重合度，取最高者。"""
+    """启发式判定：引号触发短语命中 → 强触发；排除短语/排除词命中 → 强制压制。
+
+    仅用于自测闭环连通性，不代表真实触发力。
+    """
     query = req["query"]
     q_tok = _tokens(query)
     target_desc = req.get("candidate_description", "")
+    kw_phrases = _quoted_keywords(target_desc)
+    ex_phrases = _exclusion_phrases(target_desc)
+
+    # 排除边界优先：命中排除短语或排除词 → 强制不触发
+    low_q = query.lower()
+    excluded = _phrase_hit(query, ex_phrases) or any(ex in low_q for ex in _EXCLUSION_HINTS)
+    # 触发短语命中 → 强触发信号
+    hit = _phrase_hit(query, kw_phrases)
 
     def overlap(desc: str) -> float:
-        kw = _quoted_keywords(desc) or _tokens(desc)
-        if not kw:
+        toks = set()
+        for phrase in _quoted_keywords(desc):
+            toks |= _tokens(phrase)
+        if not toks:
+            toks = _tokens(desc)
+        if not toks:
             return 0.0
-        return len(q_tok & kw) / (len(kw) ** 0.5 + 1e-9)
+        return len(q_tok & toks) / (len(toks) ** 0.5 + 1e-9)
 
     target_score = overlap(target_desc)
     best_other = 0.0
@@ -91,17 +144,16 @@ def mock_grade(req: dict) -> dict:
         if s > best_other:
             best_other, best_other_name = s, d.get("name", "none")
 
-    # 若 query 命中被测 skill 的排除边界词，压制其触发
-    low_q = query.lower()
-    for d in req.get("distractors", []):
-        pass
-    exclusion_penalty = 0.0
-    # 极简：如果 query 明显是"评估/安装/拆分"等相邻意图词，降低 target
-    for adj in ["评估", "assess", "安装", "install", "拆", "split", "排序", "算法", "sort"]:
+    if excluded:
+        target_score = 0.0
+    elif hit:
+        target_score = max(target_score, 1.0)
+    # 相邻意图词压制（如"评估/安装/拆分"这类别的任务）
+    for adj in _ADJACENT_INTENT_WORDS:
         if adj in low_q:
-            exclusion_penalty = 0.5
+            target_score -= 0.5
 
-    target_final = target_score - exclusion_penalty
+    target_final = max(0.0, target_score)
     triggered = target_final > 0.15 and target_final >= best_other
     return {
         "query": query,
